@@ -242,21 +242,25 @@ export default function App(){
   useEffect(()=>{ if(earnRef.current)earnRef.current.scrollTop=earnRef.current.scrollHeight; },[earnMsgs]);
 
   const loadWeather=async()=>{
-    const london=await fetchWeather(51.5074,-0.1278,"London");
+    const [london, mktob] = await Promise.all([
+      fetchWeather(51.5074,-0.1278,"London"),
+      fetchWeather(47.7764,10.6207,"Marktoberdorf"),
+    ]);
     setLondonWx(london);
+    setLocalWx(mktob);
+    // Also try actual current location — only show if different from both
     if(navigator.geolocation){
       navigator.geolocation.getCurrentPosition(async pos=>{
         const {latitude:lat,longitude:lon}=pos.coords;
-        // Reverse geocode label
         try{
-          const r=await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
-          const d=await r.json();
-          const label=d.address?.city||d.address?.town||d.address?.village||"Current location";
-          // Only show if meaningfully different from London
-          const distKm=Math.sqrt(Math.pow((lat-51.5074)*111,2)+Math.pow((lon+0.1278)*69,2));
-          if(distKm>30){
+          const distLon=Math.sqrt(Math.pow((lat-51.5074)*111,2)+Math.pow((lon+0.1278)*69,2));
+          const distMkt=Math.sqrt(Math.pow((lat-47.7764)*111,2)+Math.pow((lon-10.6207)*69,2));
+          if(distLon>30&&distMkt>30){
+            const r=await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
+            const d=await r.json();
+            const label=d.address?.city||d.address?.town||d.address?.village||"Current location";
             const wx=await fetchWeather(lat,lon,label);
-            setLocalWx(wx);
+            if(wx) setLocalWx(wx);
           }
         }catch{}
       },()=>{});
@@ -508,16 +512,17 @@ export default function App(){
           {/* DASHBOARD */}
           {tab==="dashboard"&&(
             <div>
-              <div style={{marginBottom:16}}>
-                <div style={{fontSize:20,fontWeight:500,color:TX}}>Good morning</div>
-                <div style={{fontSize:13,color:TXS,marginTop:2}}>{openCount} open tasks · {todayStr}</div>
-              </div>
-
-              {/* Weather */}
-              <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}>
-                <WxCard wx={londonWx}/>
-                {localWx&&<WxCard wx={localWx}/>}
-                {!londonWx&&<div style={{fontSize:13,color:TXS,padding:"8px 0"}}>Loading weather…</div>}
+              {/* Greeting + Weather row */}
+              <div style={{...card,marginBottom:16,display:"flex",alignItems:"stretch",justifyContent:"space-between",gap:16,flexWrap:"wrap"}}>
+                <div style={{display:"flex",flexDirection:"column",justifyContent:"center"}}>
+                  <div style={{fontSize:22,fontWeight:500,color:TX}}>Good morning 👋</div>
+                  <div style={{fontSize:13,color:TXS,marginTop:4}}>{todayStr}</div>
+                  <div style={{fontSize:13,color:TXM,marginTop:2}}>{openCount} open tasks</div>
+                </div>
+                <div style={{display:"flex",gap:10,flexWrap:"wrap",justifyContent:"flex-end"}}>
+                  {londonWx?<WxCard wx={londonWx}/>:<div style={{fontSize:12,color:TXS,padding:"8px"}}>Loading weather…</div>}
+                  {localWx&&<WxCard wx={localWx}/>}
+                </div>
               </div>
 
               <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:12}}>
