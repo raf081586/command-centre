@@ -26,11 +26,53 @@ Next Steps
 [synthesised text]
 ______________________________________`;
 
+// ── Dynamic date helpers ──────────────────────────────────────────────
+const TODAY = new Date();
+
+const addDays = (date, n) => { const d = new Date(date); d.setDate(d.getDate() + n); return d; };
+
+const fmt = (date) => date.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+const fmtDay = (date) => date.toLocaleDateString("en-GB", { weekday: "short" });
+const fmtShort = (date) => date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+
+// Find the Monday of the current week
+const getMonday = (date) => {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  return d;
+};
+
+const MONDAY = getMonday(TODAY);
+
+// Board columns with real dates
+const buildCols = () => {
+  const mon = getMonday(TODAY);
+  const isToday = (d) => d.toDateString() === TODAY.toDateString();
+  const dayLabel = (d) => {
+    if (isToday(d)) return "Today";
+    return d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric" });
+  };
+  return [
+    { id: "urgent", label: "Urgent",           accent: "#ef4444", date: TODAY },
+    { id: "mon",    label: dayLabel(mon),       accent: isToday(mon) ? "#f97316" : "#8b5cf6", date: mon },
+    { id: "tue",    label: dayLabel(addDays(mon,1)), accent: isToday(addDays(mon,1)) ? "#f97316" : "#8b5cf6", date: addDays(mon,1) },
+    { id: "wed",    label: dayLabel(addDays(mon,2)), accent: isToday(addDays(mon,2)) ? "#f97316" : "#8b5cf6", date: addDays(mon,2) },
+    { id: "thu",    label: dayLabel(addDays(mon,3)), accent: isToday(addDays(mon,3)) ? "#f97316" : "#8b5cf6", date: addDays(mon,3) },
+    { id: "fri",    label: dayLabel(addDays(mon,4)), accent: isToday(addDays(mon,4)) ? "#f97316" : "#8b5cf6", date: addDays(mon,4) },
+    { id: "later",  label: "Later",             accent: "#3b82f6", date: null },
+    { id: "done",   label: "Done",              accent: "#22c55e", date: null },
+  ];
+};
+
+const BOARD_COLS = buildCols();
+
 const OPPS = [
-  { id: 1, name: "Acme Corp",    stage: "Proposal",    value: "£84,000",  owner: "Sarah K.", last: "2h ago", notes: [] },
-  { id: 2, name: "Globex Ltd",   stage: "Discovery",   value: "£32,000",  owner: "Tom R.",   last: "1d ago", notes: [] },
-  { id: 3, name: "Initech",      stage: "Negotiation", value: "£120,000", owner: "Sarah K.", last: "3h ago", notes: [] },
-  { id: 4, name: "Umbrella Co",  stage: "Closed Won",  value: "£55,000",  owner: "Tom R.",   last: "5d ago", notes: [] },
+  { id: 1, name: "Acme Corp",   stage: "Proposal",    value: "£84,000",  owner: "Sarah K.", last: "2h ago", notes: [] },
+  { id: 2, name: "Globex Ltd",  stage: "Discovery",   value: "£32,000",  owner: "Tom R.",   last: "1d ago", notes: [] },
+  { id: 3, name: "Initech",     stage: "Negotiation", value: "£120,000", owner: "Sarah K.", last: "3h ago", notes: [] },
+  { id: 4, name: "Umbrella Co", stage: "Closed Won",  value: "£55,000",  owner: "Tom R.",   last: "5d ago", notes: [] },
 ];
 
 const STAGE_C = {
@@ -51,41 +93,30 @@ const CAT_C = {
 const DEF_CC = { bg: "#1e2030", c: "#9ca3af", b: "#4b5563" };
 const catC = (c) => CAT_C[c] || DEF_CC;
 
-const BOARD_COLS = [
-  { id: "urgent", label: "Urgent",  accent: "#ef4444" },
-  { id: "today",  label: "Today",   accent: "#f97316" },
-  { id: "tue",    label: "Tue 13",  accent: "#8b5cf6" },
-  { id: "wed",    label: "Wed 14",  accent: "#8b5cf6" },
-  { id: "thu",    label: "Thu 15",  accent: "#8b5cf6" },
-  { id: "fri",    label: "Fri 16",  accent: "#8b5cf6" },
-  { id: "later",  label: "Later",   accent: "#3b82f6" },
-  { id: "done",   label: "Done",    accent: "#22c55e" },
-];
-
 const INIT_TODOS = [
-  { id: 1, text: "Follow up with Acme on pricing",        col: "urgent", cat: "work",   done: false },
-  { id: 2, text: "Prepare Globex discovery call agenda",  col: "today",  cat: "work",   done: false },
-  { id: 3, text: "Update Salesforce pipeline",            col: "fri",    cat: "admin",  done: false },
-  { id: 4, text: "Book dentist appointment",              col: "later",  cat: "home",   done: false },
-  { id: 5, text: "Send Initech contract draft",           col: "done",   cat: "urgent", done: true  },
+  { id: 1, text: "Follow up with Acme on pricing",       col: "urgent", cat: "work",   done: false },
+  { id: 2, text: "Prepare Globex discovery call agenda", col: "mon",    cat: "work",   done: false },
+  { id: 3, text: "Update Salesforce pipeline",           col: "fri",    cat: "admin",  done: false },
+  { id: 4, text: "Book dentist appointment",             col: "later",  cat: "home",   done: false },
+  { id: 5, text: "Send Initech contract draft",          col: "done",   cat: "urgent", done: true  },
 ];
 
-const NEWS = [
-  { src: "BBC",  title: "UK economy grows 0.6% in Q1 2026",     summary: "Stronger than forecast, driven by services sector rebound.",        time: "1h ago" },
-  { src: "BBC",  title: "Tech layoffs slow as AI hiring surges", summary: "Major tech firms shift hiring focus to AI and data roles.",         time: "3h ago" },
-  { src: "Work", title: "Q1 Sales: Team exceeds target by 12%",  summary: "Outstanding quarter — pipeline conversion up across all regions.", time: "2h ago" },
-  { src: "Work", title: "New pricing deck now live on Drive",    summary: "Updated 2026 pricing released. Review before customer calls.",     time: "5h ago" },
+const CAL_SAMPLE = [
+  { id: 1, offset: 0, time: "09:00", title: "Acme intro call",     type: "call"     },
+  { id: 2, offset: 0, time: "14:00", title: "Team standup",        type: "internal" },
+  { id: 3, offset: 1, time: "10:30", title: "Globex discovery",    type: "call"     },
+  { id: 4, offset: 2, time: "11:00", title: "Initech negotiation", type: "call"     },
+  { id: 5, offset: 2, time: "15:00", title: "Forecast review",     type: "internal" },
+  { id: 6, offset: 3, time: "09:30", title: "QBR prep",            type: "internal" },
+  { id: 7, offset: 4, time: "13:00", title: "Umbrella check-in",   type: "call"     },
 ];
 
-const CAL = [
-  { id: 1, day: "Mon", time: "09:00", title: "Acme intro call",      type: "call"     },
-  { id: 2, day: "Mon", time: "14:00", title: "Team standup",         type: "internal" },
-  { id: 3, day: "Tue", time: "10:30", title: "Globex discovery",     type: "call"     },
-  { id: 4, day: "Wed", time: "11:00", title: "Initech negotiation",  type: "call"     },
-  { id: 5, day: "Wed", time: "15:00", title: "Forecast review",      type: "internal" },
-  { id: 6, day: "Thu", time: "09:30", title: "QBR prep",             type: "internal" },
-  { id: 7, day: "Fri", time: "13:00", title: "Umbrella check-in",    type: "call"     },
-];
+// Build calendar events with real dates
+const CAL = CAL_SAMPLE.map(e => ({
+  ...e,
+  date: addDays(MONDAY, e.offset),
+  day: addDays(MONDAY, e.offset).toLocaleDateString("en-GB", { weekday: "short" }),
+}));
 
 const BG = "#0f1117", BG2 = "#161b27", BG3 = "#1c2133";
 const BOR = "rgba(255,255,255,0.07)", BOR2 = "rgba(255,255,255,0.12)";
@@ -93,46 +124,104 @@ const ACC = "#7c6fff", ACL = "rgba(124,111,255,0.15)";
 const TX = "#e2e8f0", TXS = "#8892a4", TXM = "#c4cad4";
 
 const TAB_ITEMS = [
-  { k: "dashboard", ic: "ti-layout-dashboard", lb: "Home"  },
-  { k: "opps",      ic: "ti-briefcase",         lb: "Opps"  },
-  { k: "todos",     ic: "ti-columns",           lb: "Board" },
-  { k: "calendar",  ic: "ti-calendar",          lb: "Cal"   },
-  { k: "news",      ic: "ti-news",              lb: "News"  },
-  { k: "earn",      ic: "ti-sparkles",          lb: "EARN"  },
+  { k: "dashboard", lb: "Home",  em: "⊞" },
+  { k: "opps",      lb: "Opps",  em: "💼" },
+  { k: "todos",     lb: "Board", em: "☰"  },
+  { k: "calendar",  lb: "Cal",   em: "📅" },
+  { k: "news",      lb: "News",  em: "📰" },
+  { k: "earn",      lb: "EARN",  em: "✨" },
 ];
 
+// ── BBC RSS via allorigins proxy ──────────────────────────────────────
+const BBC_RSS = "https://feeds.bbci.co.uk/news/business/rss.xml";
+const PROXY   = `https://api.allorigins.win/get?url=${encodeURIComponent(BBC_RSS)}`;
+
+const fetchBBC = async () => {
+  try {
+    const res  = await fetch(PROXY);
+    const json = await res.json();
+    const parser = new DOMParser();
+    const xml  = parser.parseFromString(json.contents, "text/xml");
+    const items = Array.from(xml.querySelectorAll("item")).slice(0, 6);
+    return items.map(item => ({
+      title:   item.querySelector("title")?.textContent || "",
+      desc:    item.querySelector("description")?.textContent?.replace(/<[^>]+>/g, "") || "",
+      link:    item.querySelector("link")?.textContent || "#",
+      pubDate: item.querySelector("pubDate")?.textContent || "",
+    }));
+  } catch { return null; }
+};
+
+const summariseNews = async (articles) => {
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 800,
+        messages: [{
+          role: "user",
+          content: `Summarise each of these news headlines into a single plain sentence of max 15 words. Return only a JSON array of objects with keys "title" and "summary". No markdown, no preamble.\n\n${articles.map((a,i) => `${i+1}. ${a.title}: ${a.desc}`).join("\n")}`,
+        }],
+      }),
+    });
+    const data = await res.json();
+    const text = data.content?.map(c => c.text || "").join("") || "[]";
+    return JSON.parse(text.replace(/```json|```/g, "").trim());
+  } catch { return null; }
+};
+
 export default function App() {
-  const [tab, setTab]           = useState("dashboard");
-  const [opps, setOpps]         = useState(OPPS);
-  const [selOpp, setSelOpp]     = useState(null);
-  const [todos, setTodos]       = useState(INIT_TODOS);
-  const [noteText, setNoteText] = useState("");
-  const [noteVis, setNoteVis]   = useState("me");
-  const [sessCost, setSessCost] = useState(0);
-  const [reminder, setReminder] = useState("Follow up with Acme Corp — due today");
-  const [cats, setCats]         = useState(["work", "urgent", "home", "personal", "admin"]);
-  const [newCat, setNewCat]     = useState("");
+  const [tab, setTab]             = useState("dashboard");
+  const [opps, setOpps]           = useState(OPPS);
+  const [selOpp, setSelOpp]       = useState(null);
+  const [todos, setTodos]         = useState(INIT_TODOS);
+  const [noteText, setNoteText]   = useState("");
+  const [noteVis, setNoteVis]     = useState("me");
+  const [sessCost, setSessCost]   = useState(0);
+  const [reminder, setReminder]   = useState("Follow up with Acme Corp — due today");
+  const [cats, setCats]           = useState(["work","urgent","home","personal","admin"]);
+  const [newCat, setNewCat]       = useState("");
   const [showNewCat, setShowNewCat] = useState(false);
-  const [newTodo, setNewTodo]       = useState("");
+  const [newTodo, setNewTodo]     = useState("");
   const [newTodoCat, setNewTodoCat] = useState("work");
   const [addingToCol, setAddingToCol] = useState(null);
-  const [dragId, setDragId]     = useState(null);
-  const [dragOver, setDragOver] = useState(null);
-  const [earnMsgs, setEarnMsgs] = useState([]);
+  const [dragId, setDragId]       = useState(null);
+  const [dragOver, setDragOver]   = useState(null);
+  const [earnMsgs, setEarnMsgs]   = useState([]);
   const [earnInput, setEarnInput] = useState("");
   const [earnLoading, setEarnLoading] = useState(false);
   const [shareModal, setShareModal]   = useState(false);
   const [oppDetailOpen, setOppDetailOpen] = useState(false);
+  const [news, setNews]           = useState([]);
+  const [newsLoading, setNewsLoading] = useState(false);
+  const [newsError, setNewsError] = useState(false);
   const earnRef = useRef(null);
+  const isMobile = window.innerWidth < 768;
 
   useEffect(() => {
     const c = localStorage.getItem("scc_cost3");
     if (c) setSessCost(parseFloat(c) || 0);
+    loadNews();
   }, []);
 
   useEffect(() => {
     if (earnRef.current) earnRef.current.scrollTop = earnRef.current.scrollHeight;
   }, [earnMsgs]);
+
+  const loadNews = async () => {
+    setNewsLoading(true); setNewsError(false);
+    const articles = await fetchBBC();
+    if (!articles) { setNewsError(true); setNewsLoading(false); return; }
+    const summaries = await summariseNews(articles);
+    if (summaries) {
+      setNews(summaries.map((s, i) => ({ ...s, link: articles[i]?.link || "#", src: "BBC" })));
+    } else {
+      setNews(articles.map(a => ({ title: a.title, summary: a.desc.slice(0, 100), link: a.link, src: "BBC" })));
+    }
+    setNewsLoading(false);
+  };
 
   const addTok = (i, o) => {
     const cost = (i / 1e6) * 3 + (o / 1e6) * 15;
@@ -144,8 +233,7 @@ export default function App() {
     setEarnMsgs(msgs); setEarnInput(""); setEarnLoading(true);
     try {
       const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000, system: EARN_SYSTEM, messages: msgs }),
       });
       const data = await res.json();
@@ -176,10 +264,17 @@ export default function App() {
   const openCount = todos.filter(t => !t.done).length;
   const visC = (v) => v === "me" ? { bg: "rgba(124,111,255,0.2)", c: "#a78bfa" } : v === "ae" ? { bg: "rgba(251,146,60,0.2)", c: "#fb923c" } : { bg: "rgba(74,222,128,0.2)", c: "#4ade80" };
 
-  const card = { background: BG2, border: `1px solid ${BOR}`, borderRadius: 12, padding: "14px 16px" };
+  const card  = { background: BG2, border: `1px solid ${BOR}`, borderRadius: 12, padding: "14px 16px" };
   const badge = (bg, c) => ({ background: bg, color: c, fontSize: 11, padding: "2px 8px", borderRadius: 4, fontWeight: 500, display: "inline-block" });
 
-  const isMobile = window.innerWidth < 768;
+  const todayStr = TODAY.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+
+  // Calendar — group by day for display
+  const calDays = BOARD_COLS.slice(1, 6).map(col => ({
+    label: col.label,
+    date:  col.date,
+    events: CAL.filter(e => e.date.toDateString() === col.date?.toDateString()),
+  }));
 
   return (
     <div style={{ background: BG, minHeight: "100vh", fontFamily: "system-ui, sans-serif", color: TX, paddingBottom: isMobile ? 64 : 0 }}>
@@ -198,7 +293,6 @@ export default function App() {
         button { font-family: system-ui, sans-serif; }
       `}</style>
 
-      {/* Reminder banner */}
       {reminder && (
         <div style={{ background: "rgba(251,146,60,0.1)", borderBottom: "1px solid rgba(251,146,60,0.2)", padding: "10px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
           <span style={{ fontSize: 13, color: "#fb923c", flex: 1 }}>🔔 {reminder}</span>
@@ -206,7 +300,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Top bar */}
       <div style={{ background: BG2, borderBottom: `1px solid ${BOR}`, padding: "0 16px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 52, position: "sticky", top: 0, zIndex: 40 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <div style={{ background: ACL, border: `1px solid ${ACC}`, borderRadius: 8, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>🚀</div>
@@ -224,25 +317,21 @@ export default function App() {
         </div>
       </div>
 
-      {/* Layout */}
       <div style={{ display: "flex", minHeight: "calc(100vh - 52px)" }}>
-
-        {/* Sidebar — desktop only */}
         {!isMobile && (
           <nav style={{ width: 200, background: BG2, borderRight: `1px solid ${BOR}`, padding: "16px 12px", display: "flex", flexDirection: "column", gap: 2, position: "sticky", top: 52, height: "calc(100vh - 52px)", overflowY: "auto", flexShrink: 0 }}>
-            {TAB_ITEMS.map(({ k, lb }) => (
+            {TAB_ITEMS.map(({ k, em, lb }) => (
               <button key={k} onClick={() => setTab(k)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 8, border: "none", background: tab === k ? ACL : "transparent", color: tab === k ? ACC : TXS, cursor: "pointer", fontSize: 13, fontWeight: tab === k ? 500 : 400, width: "100%", textAlign: "left" }}>
-                {lb}
+                <span>{em}</span>{lb}
               </button>
             ))}
             <div style={{ marginTop: "auto", padding: "12px", background: BG3, borderRadius: 8, border: `1px solid ${BOR}` }}>
               <div style={{ fontSize: 11, color: TXS, marginBottom: 4 }}>14°C London</div>
-              <div style={{ fontSize: 11, color: TXS }}>Mon 11 May 2026</div>
+              <div style={{ fontSize: 11, color: TXS }}>{todayStr}</div>
             </div>
           </nav>
         )}
 
-        {/* Main content */}
         <main style={{ flex: 1, padding: isMobile ? 12 : 24, minWidth: 0, overflowX: "hidden" }}>
 
           {/* DASHBOARD */}
@@ -250,7 +339,7 @@ export default function App() {
             <div>
               <div style={{ marginBottom: 16 }}>
                 <div style={{ fontSize: 20, fontWeight: 500, color: TX }}>Good morning</div>
-                <div style={{ fontSize: 13, color: TXS, marginTop: 2 }}>{openCount} open tasks · Mon 11 May</div>
+                <div style={{ fontSize: 13, color: TXS, marginTop: 2 }}>{openCount} open tasks · {todayStr}</div>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
                 <div style={card}>
@@ -265,16 +354,18 @@ export default function App() {
                     </div>
                   ))}
                 </div>
+
                 <div style={card}>
                   <div style={{ fontSize: 12, fontWeight: 500, color: TXS, marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>Open tasks</div>
                   {todos.filter(t => !t.done).slice(0, 5).map(t => (
                     <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: `1px solid ${BOR}` }}>
-                      <input type="checkbox" onChange={() => moveTodo(t.id, "done")} style={{ accentColor: ACC, width: "15px !important", height: "15px !important", flexShrink: 0, padding: "0 !important", borderRadius: "3px !important" }} />
+                      <input type="checkbox" onChange={() => moveTodo(t.id, "done")} style={{ width: "15px !important", height: "15px !important", flexShrink: 0, padding: "0 !important", accentColor: ACC }} />
                       <span style={{ fontSize: 13, flex: 1, color: TXM, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.text}</span>
                       <span style={{ ...badge(catC(t.cat).bg, catC(t.cat).c), borderRadius: 10, flexShrink: 0 }}>{t.cat}</span>
                     </div>
                   ))}
                 </div>
+
                 <div style={card}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                     <span style={{ fontSize: 12, fontWeight: 500, color: TXS, textTransform: "uppercase", letterSpacing: "0.06em" }}>This week</span>
@@ -282,23 +373,26 @@ export default function App() {
                   </div>
                   {CAL.slice(0, 4).map(e => (
                     <div key={e.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 0", borderBottom: `1px solid ${BOR}` }}>
-                      <span style={{ fontSize: 11, color: TXS, minWidth: 26 }}>{e.day}</span>
+                      <span style={{ fontSize: 11, color: TXS, minWidth: 30 }}>{fmtDay(e.date)}</span>
                       <span style={{ fontSize: 11, color: TXS, minWidth: 34 }}>{e.time}</span>
                       <span style={{ width: 6, height: 6, borderRadius: 3, background: e.type === "call" ? ACC : "#4ade80", flexShrink: 0 }} />
                       <span style={{ fontSize: 13, color: TXM, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.title}</span>
                     </div>
                   ))}
                 </div>
+
                 <div style={card}>
-                  <div style={{ fontSize: 12, fontWeight: 500, color: TXS, marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>News</div>
-                  {NEWS.slice(0, 3).map((n, i) => (
-                    <div key={i} style={{ padding: "7px 0", borderBottom: `1px solid ${BOR}` }}>
-                      <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 2 }}>
-                        <span style={badge(n.src === "BBC" ? "rgba(248,113,113,0.15)" : "rgba(124,111,255,0.15)", n.src === "BBC" ? "#f87171" : "#a78bfa")}>{n.src}</span>
-                        <span style={{ fontSize: 11, color: TXS }}>{n.time}</span>
-                      </div>
-                      <div style={{ fontSize: 12, fontWeight: 500, color: TXM }}>{n.title}</div>
-                    </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                    <span style={{ fontSize: 12, fontWeight: 500, color: TXS, textTransform: "uppercase", letterSpacing: "0.06em" }}>BBC News</span>
+                    <button onClick={loadNews} style={{ fontSize: 11, color: TXS, background: BG3, padding: "2px 7px", borderRadius: 5, border: `1px solid ${BOR}`, cursor: "pointer" }}>↺ Refresh</button>
+                  </div>
+                  {newsLoading && <div style={{ fontSize: 13, color: TXS }}>Loading news…</div>}
+                  {newsError && <div style={{ fontSize: 13, color: "#f87171" }}>Could not load news. Check connection.</div>}
+                  {!newsLoading && !newsError && news.slice(0, 3).map((n, i) => (
+                    <a key={i} href={n.link} target="_blank" rel="noreferrer" style={{ display: "block", padding: "7px 0", borderBottom: `1px solid ${BOR}`, textDecoration: "none" }}>
+                      <div style={{ fontSize: 12, fontWeight: 500, color: TXM, marginBottom: 2 }}>{n.title}</div>
+                      <div style={{ fontSize: 11, color: TXS }}>{n.summary}</div>
+                    </a>
                   ))}
                 </div>
               </div>
@@ -346,7 +440,7 @@ export default function App() {
                         <div key={n.id} style={{ background: BG3, borderRadius: 8, padding: "10px 12px", marginBottom: 8 }}>
                           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
                             <span style={{ fontSize: 11, color: TXS }}>{n.date}</span>
-                            <select value={n.vis} onChange={e => togNoteVis(curOpp.id, n.id, e.target.value)} style={{ fontSize: 11, padding: "2px 6px !important", width: "auto !important", background: `${visC(n.vis).bg} !important`, color: `${visC(n.vis).c} !important`, border: "none !important", borderRadius: "4px !important", cursor: "pointer" }}>
+                            <select value={n.vis} onChange={e => togNoteVis(curOpp.id, n.id, e.target.value)} style={{ fontSize: "11px !important", padding: "2px 6px !important", width: "auto !important", background: `${visC(n.vis).bg} !important`, color: `${visC(n.vis).c} !important`, border: "none !important", borderRadius: "4px !important", cursor: "pointer" }}>
                               <option value="me">Only me</option>
                               <option value="ae">Me + AE</option>
                               <option value="manager">All</option>
@@ -421,11 +515,14 @@ export default function App() {
                       onDragOver={e => { e.preventDefault(); setDragOver(col.id); }}
                       onDrop={e => { e.preventDefault(); if (dragId) moveTodo(dragId, col.id); setDragId(null); setDragOver(null); }}>
                       <div style={{ background: dragOver === col.id ? `${col.accent}18` : BG3, border: `1px solid ${dragOver === col.id ? col.accent : BOR}`, borderRadius: 10, padding: "10px 8px", minHeight: 100, transition: "border-color .15s" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 8 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 4 }}>
                           <span style={{ width: 7, height: 7, borderRadius: 2, background: col.accent }} />
                           <span style={{ fontSize: 12, fontWeight: 500, color: TXM }}>{col.label}</span>
                           <span style={{ marginLeft: "auto", fontSize: 10, color: TXS, background: "rgba(255,255,255,0.05)", borderRadius: 8, padding: "1px 5px" }}>{colItems.length}</span>
                         </div>
+                        {col.date && (
+                          <div style={{ fontSize: 10, color: TXS, marginBottom: 8 }}>{fmtShort(col.date)}</div>
+                        )}
                         {colItems.map(t => (
                           <div key={t.id} draggable onDragStart={() => setDragId(t.id)}
                             style={{ background: BG2, border: `1px solid ${BOR}`, borderRadius: 7, padding: "7px 8px", marginBottom: 5, cursor: "grab", opacity: t.done ? 0.5 : 1, userSelect: "none" }}>
@@ -463,26 +560,26 @@ export default function App() {
           {tab === "calendar" && (
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                <div style={{ fontSize: 15, fontWeight: 500, color: TX }}>Week of 11 May</div>
-                <span style={{ fontSize: 11, color: TXS, background: BG3, padding: "4px 8px", borderRadius: 6, border: `1px solid ${BOR}` }}>Connect calendar</span>
+                <div style={{ fontSize: 15, fontWeight: 500, color: TX }}>Week of {fmtShort(MONDAY)}</div>
+                <span style={{ fontSize: 11, color: TXS, background: BG3, padding: "4px 8px", borderRadius: 6, border: `1px solid ${BOR}` }}>Connect Outlook / Google</span>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {["Mon", "Tue", "Wed", "Thu", "Fri"].map(day => {
-                  const evs = CAL.filter(e => e.day === day);
-                  if (!evs.length) return null;
-                  return (
-                    <div key={day} style={card}>
-                      <div style={{ fontSize: 12, fontWeight: 500, color: TXS, marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.06em" }}>{day}</div>
-                      {evs.map(e => (
-                        <div key={e.id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${BOR}` }}>
-                          <span style={{ fontSize: 12, color: TXS, minWidth: 40 }}>{e.time}</span>
-                          <span style={{ width: 3, height: 24, borderRadius: 2, background: e.type === "call" ? ACC : "#4ade80", flexShrink: 0 }} />
-                          <span style={{ fontSize: 13, color: TXM }}>{e.title}</span>
-                        </div>
-                      ))}
+                {calDays.map(({ label, date, events }) => (
+                  <div key={label} style={{ ...card, border: date.toDateString() === TODAY.toDateString() ? `1px solid ${ACC}` : `1px solid ${BOR}` }}>
+                    <div style={{ fontSize: 12, fontWeight: 500, color: date.toDateString() === TODAY.toDateString() ? ACC : TXS, marginBottom: events.length ? 8 : 0, display: "flex", justifyContent: "space-between" }}>
+                      <span style={{ textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</span>
+                      <span style={{ fontWeight: 400 }}>{fmtShort(date)}</span>
                     </div>
-                  );
-                })}
+                    {events.length === 0 && <div style={{ fontSize: 12, color: TXS }}>No events</div>}
+                    {events.map(e => (
+                      <div key={e.id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${BOR}` }}>
+                        <span style={{ fontSize: 12, color: TXS, minWidth: 40 }}>{e.time}</span>
+                        <span style={{ width: 3, height: 24, borderRadius: 2, background: e.type === "call" ? ACC : "#4ade80", flexShrink: 0 }} />
+                        <span style={{ fontSize: 13, color: TXM }}>{e.title}</span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -492,17 +589,27 @@ export default function App() {
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                 <div style={{ fontSize: 15, fontWeight: 500, color: TX }}>News digest</div>
-                <span style={{ fontSize: 11, color: TXS, background: BG3, padding: "4px 8px", borderRadius: 6, border: `1px solid ${BOR}` }}>Connect sources</span>
+                <button onClick={loadNews} style={{ fontSize: 11, color: TXS, background: BG3, padding: "4px 8px", borderRadius: 6, border: `1px solid ${BOR}`, cursor: "pointer" }}>↺ Refresh</button>
               </div>
-              {NEWS.map((n, i) => (
-                <div key={i} style={{ ...card, marginBottom: 10 }}>
-                  <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 5 }}>
-                    <span style={badge(n.src === "BBC" ? "rgba(248,113,113,0.15)" : "rgba(124,111,255,0.15)", n.src === "BBC" ? "#f87171" : "#a78bfa")}>{n.src}</span>
-                    <span style={{ fontSize: 11, color: TXS }}>{n.time}</span>
-                  </div>
-                  <div style={{ fontWeight: 500, fontSize: 13, color: TXM, marginBottom: 3 }}>{n.title}</div>
-                  <div style={{ fontSize: 12, color: TXS, lineHeight: 1.5 }}>{n.summary}</div>
+              <div style={{ ...card, marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: TXM, marginBottom: 2 }}>Company intranet</div>
+                  <div style={{ fontSize: 11, color: TXS }}>Paste your intranet RSS URL to connect</div>
                 </div>
+                <span style={{ fontSize: 11, color: TXS, background: BG3, padding: "4px 8px", borderRadius: 6, border: `1px solid ${BOR}` }}>Not connected</span>
+              </div>
+              {newsLoading && <div style={{ fontSize: 13, color: TXS, padding: "20px 0", textAlign: "center" }}>Loading BBC News…</div>}
+              {newsError && <div style={{ fontSize: 13, color: "#f87171", padding: "20px 0", textAlign: "center" }}>Could not load news. Check connection and refresh.</div>}
+              {!newsLoading && !newsError && news.map((n, i) => (
+                <a key={i} href={n.link} target="_blank" rel="noreferrer" style={{ display: "block", textDecoration: "none" }}>
+                  <div style={{ ...card, marginBottom: 10 }}>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 5 }}>
+                      <span style={badge("rgba(248,113,113,0.15)", "#f87171")}>BBC</span>
+                    </div>
+                    <div style={{ fontWeight: 500, fontSize: 13, color: TXM, marginBottom: 3 }}>{n.title}</div>
+                    <div style={{ fontSize: 12, color: TXS, lineHeight: 1.5 }}>{n.summary}</div>
+                  </div>
+                </a>
               ))}
             </div>
           )}
@@ -518,13 +625,9 @@ export default function App() {
                   <div style={{ fontSize: 14, color: TXM, marginBottom: 14 }}>Start from an opportunity or begin fresh</div>
                   <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
                     {opps.map(o => (
-                      <button key={o.id} onClick={() => startEARN(o)} style={{ fontSize: 12, padding: "8px 12px", borderRadius: 8, border: `1px solid ${BOR2}`, background: BG3, color: TXM, cursor: "pointer" }}>
-                        {o.name}
-                      </button>
+                      <button key={o.id} onClick={() => startEARN(o)} style={{ fontSize: 12, padding: "8px 12px", borderRadius: 8, border: `1px solid ${BOR2}`, background: BG3, color: TXM, cursor: "pointer" }}>{o.name}</button>
                     ))}
-                    <button onClick={() => sendEARN("Start")} style={{ fontSize: 12, padding: "8px 12px", borderRadius: 8, border: `1px solid ${ACC}`, background: ACL, color: "#a78bfa", cursor: "pointer", fontWeight: 500 }}>
-                      + Fresh start
-                    </button>
+                    <button onClick={() => sendEARN("Start")} style={{ fontSize: 12, padding: "8px 12px", borderRadius: 8, border: `1px solid ${ACC}`, background: ACL, color: "#a78bfa", cursor: "pointer", fontWeight: 500 }}>+ Fresh start</button>
                   </div>
                 </div>
               ) : (
@@ -556,19 +659,17 @@ export default function App() {
         </main>
       </div>
 
-      {/* Bottom nav — mobile only */}
       {isMobile && (
         <nav style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: BG2, borderTop: `1px solid ${BOR}`, display: "flex", zIndex: 50, height: 56 }}>
-          {TAB_ITEMS.map(({ k, lb }) => (
+          {TAB_ITEMS.map(({ k, lb, em }) => (
             <button key={k} onClick={() => { setTab(k); setOppDetailOpen(false); }} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, border: "none", background: "none", cursor: "pointer", color: tab === k ? ACC : TXS, padding: "6px 0" }}>
-              <span style={{ fontSize: 18 }}>{k === "dashboard" ? "⊞" : k === "opps" ? "💼" : k === "todos" ? "☰" : k === "calendar" ? "📅" : k === "news" ? "📰" : "✨"}</span>
+              <span style={{ fontSize: 18 }}>{em}</span>
               <span style={{ fontSize: 10, fontWeight: tab === k ? 500 : 400 }}>{lb}</span>
             </button>
           ))}
         </nav>
       )}
 
-      {/* Share modal */}
       {shareModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: isMobile ? "flex-end" : "center", justifyContent: "center", zIndex: 999, padding: isMobile ? "0 0 64px" : 0 }} onClick={() => setShareModal(false)}>
           <div style={{ ...card, width: "100%", maxWidth: 400, borderRadius: isMobile ? "12px 12px 0 0" : 12 }} onClick={e => e.stopPropagation()}>
