@@ -124,9 +124,9 @@ const ACC = "#7c6fff", ACL = "rgba(124,111,255,0.15)";
 const TX = "#e2e8f0", TXS = "#8892a4", TXM = "#c4cad4";
 
 const TAB_ITEMS = [
-  { k: "dashboard", lb: "Home",  em: "⊞" },
+  { k: "dashboard", lb: "Home",  em: "🏠" },
   { k: "opps",      lb: "Opps",  em: "💼" },
-  { k: "todos",     lb: "Board", em: "☰"  },
+  { k: "todos",     lb: "Board", em: "🗂️"  },
   { k: "calendar",  lb: "Cal",   em: "📅" },
   { k: "news",      lb: "News",  em: "📰" },
   { k: "earn",      lb: "EARN",  em: "✨" },
@@ -134,14 +134,14 @@ const TAB_ITEMS = [
 
 // ── BBC RSS via allorigins proxy ──────────────────────────────────────
 const BBC_RSS = "https://feeds.bbci.co.uk/news/business/rss.xml";
-const PROXY   = `https://api.allorigins.win/get?url=${encodeURIComponent(BBC_RSS)}`;
+const PROXY   = `https://corsproxy.io/?${encodeURIComponent(BBC_RSS)}`;
 
 const fetchBBC = async () => {
   try {
     const res  = await fetch(PROXY);
-    const json = await res.json();
+    const text = await res.text();
     const parser = new DOMParser();
-    const xml  = parser.parseFromString(json.contents, "text/xml");
+    const xml  = parser.parseFromString(text, "text/xml");
     const items = Array.from(xml.querySelectorAll("item")).slice(0, 6);
     return items.map(item => ({
       title:   item.querySelector("title")?.textContent || "",
@@ -192,8 +192,11 @@ export default function App() {
   const [earnMsgs, setEarnMsgs]   = useState([]);
   const [earnInput, setEarnInput] = useState("");
   const [earnLoading, setEarnLoading] = useState(false);
-  const [shareModal, setShareModal]   = useState(false);
+  const [shareModal, setShareModal]     = useState(false);
   const [oppDetailOpen, setOppDetailOpen] = useState(false);
+  const [showAddOpp, setShowAddOpp]     = useState(false);
+  const [newOpp, setNewOpp]             = useState({ name: "", stage: "Discovery", value: "", owner: "" });
+  const [calConnectMsg, setCalConnectMsg] = useState(false);
   const [news, setNews]           = useState([]);
   const [newsLoading, setNewsLoading] = useState(false);
   const [newsError, setNewsError] = useState(false);
@@ -266,6 +269,13 @@ export default function App() {
 
   const card  = { background: BG2, border: `1px solid ${BOR}`, borderRadius: 12, padding: "14px 16px" };
   const badge = (bg, c) => ({ background: bg, color: c, fontSize: 11, padding: "2px 8px", borderRadius: 4, fontWeight: 500, display: "inline-block" });
+
+  const addOpp = () => {
+    if (!newOpp.name.trim()) return;
+    setOpps(p => [...p, { id: Date.now(), ...newOpp, last: "Just now", notes: [] }]);
+    setNewOpp({ name: "", stage: "Discovery", value: "", owner: "" });
+    setShowAddOpp(false);
+  };
 
   const todayStr = TODAY.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
@@ -359,7 +369,7 @@ export default function App() {
                   <div style={{ fontSize: 12, fontWeight: 500, color: TXS, marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>Open tasks</div>
                   {todos.filter(t => !t.done).slice(0, 5).map(t => (
                     <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: `1px solid ${BOR}` }}>
-                      <input type="checkbox" onChange={() => moveTodo(t.id, "done")} style={{ width: "15px !important", height: "15px !important", flexShrink: 0, padding: "0 !important", accentColor: ACC }} />
+                      <input type="checkbox" onChange={() => moveTodo(t.id, "done")} style={{ flexShrink: 0, accentColor: ACC, width: 15, height: 15 }} />
                       <span style={{ fontSize: 13, flex: 1, color: TXM, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.text}</span>
                       <span style={{ ...badge(catC(t.cat).bg, catC(t.cat).c), borderRadius: 10, flexShrink: 0 }}>{t.cat}</span>
                     </div>
@@ -405,7 +415,27 @@ export default function App() {
               {(!oppDetailOpen || !isMobile) && (
                 <div style={isMobile ? {} : { display: "grid", gridTemplateColumns: "260px 1fr", gap: 16 }}>
                   <div>
-                    <div style={{ fontSize: 15, fontWeight: 500, color: TX, marginBottom: 12 }}>Opportunities</div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                      <div style={{ fontSize: 15, fontWeight: 500, color: TX }}>Opportunities</div>
+                      <button onClick={() => setShowAddOpp(true)} style={{ fontSize: 12, padding: "5px 12px", borderRadius: 8, background: ACC, color: "#fff", border: "none", cursor: "pointer", fontWeight: 500 }}>+ Add opp</button>
+                    </div>
+                    {showAddOpp && (
+                      <div style={{ ...card, marginBottom: 12, background: BG3 }}>
+                        <div style={{ fontSize: 13, fontWeight: 500, color: TXM, marginBottom: 10 }}>New opportunity</div>
+                        <input value={newOpp.name} onChange={e => setNewOpp(p => ({ ...p, name: e.target.value }))} placeholder="Company name" style={{ marginBottom: 8 }} />
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+                          <input value={newOpp.value} onChange={e => setNewOpp(p => ({ ...p, value: e.target.value }))} placeholder="Value e.g. £50,000" />
+                          <input value={newOpp.owner} onChange={e => setNewOpp(p => ({ ...p, owner: e.target.value }))} placeholder="AE name" />
+                        </div>
+                        <select value={newOpp.stage} onChange={e => setNewOpp(p => ({ ...p, stage: e.target.value }))} style={{ marginBottom: 10 }}>
+                          {Object.keys(STAGE_C).map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button onClick={addOpp} style={{ flex: 1, padding: "8px", borderRadius: 8, background: ACC, color: "#fff", border: "none", cursor: "pointer", fontWeight: 500, fontSize: 13 }}>Save</button>
+                          <button onClick={() => setShowAddOpp(false)} style={{ padding: "8px 12px", borderRadius: 8, border: `1px solid ${BOR2}`, background: "transparent", color: TXS, cursor: "pointer", fontSize: 13 }}>Cancel</button>
+                        </div>
+                      </div>
+                    )}
                     {opps.map(o => (
                       <div key={o.id} onClick={() => { setSelOpp(o.id); setOppDetailOpen(true); }} style={{ ...card, marginBottom: 8, cursor: "pointer", border: selOpp === o.id ? `1px solid ${ACC}` : `1px solid ${BOR}` }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
@@ -561,8 +591,20 @@ export default function App() {
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                 <div style={{ fontSize: 15, fontWeight: 500, color: TX }}>Week of {fmtShort(MONDAY)}</div>
-                <span style={{ fontSize: 11, color: TXS, background: BG3, padding: "4px 8px", borderRadius: 6, border: `1px solid ${BOR}` }}>Connect Outlook / Google</span>
+                <button onClick={() => setCalConnectMsg(p => !p)} style={{ fontSize: 11, color: TXS, background: BG3, padding: "4px 8px", borderRadius: 6, border: `1px solid ${BOR}`, cursor: "pointer" }}>
+                  🔗 Connect Outlook / Google
+                </button>
               </div>
+              {calConnectMsg && (
+                <div style={{ ...card, marginBottom: 12, background: "rgba(124,111,255,0.08)", border: `1px solid ${ACC}` }}>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: ACC, marginBottom: 6 }}>Connecting your calendar</div>
+                  <div style={{ fontSize: 12, color: TXM, lineHeight: 1.6 }}>
+                    Calendar sync requires an OAuth connection to Microsoft or Google. We'll set this up properly in a dedicated step after Supabase — it needs a small backend function and app registration.<br/><br/>
+                    <strong style={{ color: TXM }}>For Outlook:</strong> Register an app at portal.azure.com → Microsoft Graph API → Calendars.Read scope.<br/>
+                    <strong style={{ color: TXM }}>For Google:</strong> Create a project at console.cloud.google.com → Google Calendar API → OAuth 2.0.
+                  </div>
+                </div>
+              )}
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {calDays.map(({ label, date, events }) => (
                   <div key={label} style={{ ...card, border: date.toDateString() === TODAY.toDateString() ? `1px solid ${ACC}` : `1px solid ${BOR}` }}>
