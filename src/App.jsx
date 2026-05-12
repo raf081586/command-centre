@@ -426,7 +426,7 @@ export default function App(){
           <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
             <input type="date" defaultValue={toInputDate(new Date(n.date))}
               onChange={e=>updateNoteDate(opp.id,n.id,e.target.value)}
-              style={{fontSize:"11px !important",padding:"2px 6px !important",width:"auto !important",background:`${BG2} !important`,color:`${TXS} !important`,border:`1px solid ${BOR2} !important`,borderRadius:"4px !important`,cursor:"pointer"}}/>
+              style={{fontSize:"11px !important",padding:"2px 6px !important",width:"auto !important",background:`${BG2} !important`,color:`${TXS} !important`,border:`1px solid ${BOR2} !important`,borderRadius:"4px !important",cursor:"pointer"}}/>
             <span style={{fontSize:11,color:TXS}}>{n.dateStr||fmtFull(new Date(n.date))}</span>
             <select value={n.vis} onChange={e=>togNoteVis(opp.id,n.id,e.target.value)}
               style={{fontSize:"11px !important",padding:"2px 6px !important",width:"auto !important",background:`${visC(n.vis).bg} !important`,color:`${visC(n.vis).c} !important`,border:"none !important",borderRadius:"4px !important",cursor:"pointer",marginLeft:"auto"}}>
