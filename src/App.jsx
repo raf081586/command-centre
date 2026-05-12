@@ -1,33 +1,46 @@
 import { useState, useEffect, useRef } from "react";
+import { createClient } from "@supabase/supabase-js";
 
-// ── API endpoint — uses Vercel proxy in production ────────────────────
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_KEY
+);
+
 const API = "/api/claude";
 
-const EARN_SYSTEM = `You are an expert solution consultant. Your tone is efficient, clear, and helpful.
-Core Directive: Your goal is to guide a user through the EARN framework to generate a structured summary of a prospect engagement, ready to be logged in a CRM like Salesforce. YOU NEVER USE AMERICAN ENGLISH, ALWAYS AND ONLY BRITISH ENGLISH!
-Step 1: When invoked, say exactly: "I'm the EARN Comments Generator. I'll help you create a structured summary of your latest prospect engagement for Salesforce. Let's get started." Then ask Step 2.
-Step 2: Ask: "What type of engagement was this? (e.g., Discovery, Demo, Tech Deep Dive, RFP) and what status does it have (Green, Amber, Red)"
-Step 3: Ask each EARN component one at a time:
-E: "Let's start with Recent Events. Tell me about the activity. What did we learn? Feel free to use bullet points."
-A: "Next, Participating Audience (Roles) — who attended and who was missing?"
-R: "What would stop them moving forward with Workday? Do we have the right engagement for success?"
-N: "Finally, Next Steps. What are the follow up activities for presales & when?"
-Step 4: Once all four components collected, synthesise into professional British English. Not pompous.
-Step 5: Output ONLY this format — no bold, no symbols, no preamble, no thanks, no explanation:
-[Date as Nth Month YYYY], RF, [Engagement Type], [Status]
+const EARN_SYSTEM = `You are an expert solution consultant helping log a prospect engagement into Salesforce. Your tone is efficient, clear, and helpful. YOU ALWAYS USE BRITISH ENGLISH ONLY. NEVER USE AMERICAN ENGLISH.
+
+You collect information step by step. You ask ONE question at a time and wait for the answer before proceeding. You never skip steps or make up information.
+
+The steps are fixed and you must follow them exactly in order:
+STEP 1 (engagement type): Ask exactly — "What type of engagement was this? (e.g., Discovery, Demo, Tech Deep Dive, RFP) and what status does it have (Green, Amber, Red)"
+STEP 2 (recent events): Ask exactly — "Let's start with Recent Events. Tell me about the activity. What did we learn? Feel free to use bullet points."
+STEP 3 (audience): Ask exactly — "Next, Participating Audience (Roles) — who attended and who was missing?"
+STEP 4 (risks): Ask exactly — "What would stop them moving forward with Workday? Do we have the right engagement for success?"
+STEP 5 (next steps): Ask exactly — "Finally, Next Steps. What are the follow up activities for presales and when?"
+STEP 6 (output): Once you have all five answers, synthesise them into the output format below. Use British English throughout. Do not use American spellings. Do not add preamble, thanks, or explanation. Output ONLY:
+
+[Today's date as Nth Month YYYY], RF, [Engagement Type], [Status]
 
 Recent Events
-[synthesised text]
+[synthesised summary of recent events]
 
 Participating Audience (Roles)
-[synthesised text]
+[synthesised summary of audience]
 
 Potential Risks
-[synthesised text]
+[synthesised summary of risks]
 
 Next Steps
-[synthesised text]
-______________________________________`;
+[synthesised summary of next steps]
+______________________________________
+
+IMPORTANT RULES:
+- Never invent or assume any information. Only use what the user tells you.
+- Ask exactly one question per message.
+- Do not combine multiple questions in one message.
+- Do not produce the final output until you have collected all five pieces of information.
+- Always use British English: "recognised" not "recognized", "colour" not "color", "whilst" not "while", etc.`;
 
 // ── Date helpers ──────────────────────────────────────────────────────
 const TODAY    = new Date();
@@ -35,9 +48,8 @@ const addDays  = (d,n)=>{ const x=new Date(d); x.setDate(x.getDate()+n); return 
 const fmtDay   = d=>d.toLocaleDateString("en-GB",{weekday:"short"});
 const fmtShort = d=>d.toLocaleDateString("en-GB",{day:"numeric",month:"short"});
 const fmtFull  = d=>d.toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"});
-const toInputDate = d=>d.toISOString().slice(0,10);
+const toInputDate  = d=>d.toISOString().slice(0,10);
 const fromInputDate= s=>{ const d=new Date(s); d.setHours(12); return d; };
-
 const getMonday = d=>{ const x=new Date(d); const day=x.getDay(); x.setDate(x.getDate()+(day===0?-6:1-day)); return x; };
 const MONDAY   = getMonday(TODAY);
 const todayStr = TODAY.toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
@@ -47,19 +59,18 @@ const buildCols=()=>{
   const isToday=d=>d.toDateString()===TODAY.toDateString();
   const dayLabel=d=>isToday(d)?"Today":d.toLocaleDateString("en-GB",{weekday:"short",day:"numeric"});
   return [
-    {id:"urgent",label:"Urgent",          accent:"#ef4444",date:TODAY},
-    {id:"mon",   label:dayLabel(mon),     accent:isToday(mon)?"#f97316":"#8b5cf6",date:mon},
+    {id:"urgent",label:"Urgent",           accent:"#ef4444",date:TODAY},
+    {id:"mon",   label:dayLabel(mon),       accent:isToday(mon)?"#f97316":"#8b5cf6",date:mon},
     {id:"tue",   label:dayLabel(addDays(mon,1)),accent:isToday(addDays(mon,1))?"#f97316":"#8b5cf6",date:addDays(mon,1)},
     {id:"wed",   label:dayLabel(addDays(mon,2)),accent:isToday(addDays(mon,2))?"#f97316":"#8b5cf6",date:addDays(mon,2)},
     {id:"thu",   label:dayLabel(addDays(mon,3)),accent:isToday(addDays(mon,3))?"#f97316":"#8b5cf6",date:addDays(mon,3)},
     {id:"fri",   label:dayLabel(addDays(mon,4)),accent:isToday(addDays(mon,4))?"#f97316":"#8b5cf6",date:addDays(mon,4)},
-    {id:"later", label:"Later",           accent:"#3b82f6",date:null},
-    {id:"done",  label:"Done",            accent:"#22c55e",date:null},
+    {id:"later", label:"Later",             accent:"#3b82f6",date:null},
+    {id:"done",  label:"Done",              accent:"#22c55e",date:null},
   ];
 };
 const BOARD_COLS=buildCols();
 
-// ── Colours ───────────────────────────────────────────────────────────
 const STAGE_C={
   "Discovery":  {bg:"#1a3a5c",c:"#7ab8f5"},
   "Proposal":   {bg:"#3a2e0a",c:"#f5c842"},
@@ -91,21 +102,6 @@ const TAB_ITEMS=[
   {k:"earn",     lb:"EARN", em:"✨"},
 ];
 
-const INIT_OPPS=[
-  {id:1,name:"Acme Corp",  stage:"Proposal",   value:"£84,000", wdAE:"Sarah K.", vndlyAE:"Tom R.",  last:"2h ago",notes:[]},
-  {id:2,name:"Globex Ltd", stage:"Discovery",  value:"£32,000", wdAE:"James L.", vndlyAE:"",        last:"1d ago",notes:[]},
-  {id:3,name:"Initech",    stage:"Negotiation",value:"£120,000",wdAE:"Sarah K.", vndlyAE:"Tom R.",  last:"3h ago",notes:[]},
-  {id:4,name:"Umbrella Co",stage:"Closed Won", value:"£55,000", wdAE:"James L.", vndlyAE:"Nina P.", last:"5d ago",notes:[]},
-];
-
-const INIT_TODOS=[
-  {id:1,text:"Follow up with Acme on pricing",       col:"urgent",cat:"work",  done:false},
-  {id:2,text:"Prepare Globex discovery call agenda", col:"mon",   cat:"work",  done:false},
-  {id:3,text:"Update Salesforce pipeline",           col:"fri",   cat:"admin", done:false},
-  {id:4,text:"Book dentist appointment",             col:"later", cat:"home",  done:false},
-  {id:5,text:"Send Initech contract draft",          col:"done",  cat:"urgent",done:true },
-];
-
 const CAL_SAMPLE=[
   {id:1,offset:0,time:"09:00",title:"Acme intro call",     type:"call"},
   {id:2,offset:0,time:"14:00",title:"Team standup",        type:"internal"},
@@ -115,7 +111,7 @@ const CAL_SAMPLE=[
   {id:6,offset:3,time:"09:30",title:"QBR prep",            type:"internal"},
   {id:7,offset:4,time:"13:00",title:"Umbrella check-in",   type:"call"},
 ];
-const CAL=CAL_SAMPLE.map(e=>({...e,date:addDays(MONDAY,e.offset),day:addDays(MONDAY,e.offset).toLocaleDateString("en-GB",{weekday:"short"})}));
+const CAL=CAL_SAMPLE.map(e=>({...e,date:addDays(MONDAY,e.offset)}));
 
 // ── BBC News ──────────────────────────────────────────────────────────
 const fetchBBC=async()=>{
@@ -139,7 +135,7 @@ const fetchBBC=async()=>{
 };
 
 const claudeCall=async(messages,system="")=>{
-  const body={model:"claude-sonnet-4-20250514",max_tokens:800,messages};
+  const body={model:"mistral-small-latest",max_tokens:800,messages};
   if(system)body.system=system;
   const res=await fetch(API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
   const data=await res.json();
@@ -170,85 +166,151 @@ const fetchWeather=async(lat,lon,label)=>{
     const res=await fetch(url);
     const d=await res.json();
     const code=d.current.weathercode;
-    return{
-      label,
-      temp:Math.round(d.current.temperature_2m),
-      icon:WMO_ICON[code]||"🌡️",
-      desc:WMO_CODES[code]||"",
-      wind:Math.round(d.current.windspeed_10m),
-      rain:d.daily.precipitation_probability_max[0]||0,
-      hi:Math.round(d.daily.temperature_2m_max[0]),
-      lo:Math.round(d.daily.temperature_2m_min[0]),
-    };
+    return{label,temp:Math.round(d.current.temperature_2m),icon:WMO_ICON[code]||"🌡️",desc:WMO_CODES[code]||"",wind:Math.round(d.current.windspeed_10m),rain:d.daily.precipitation_probability_max[0]||0,hi:Math.round(d.daily.temperature_2m_max[0]),lo:Math.round(d.daily.temperature_2m_min[0])};
   }catch{return null;}
 };
 
-// ── AE combo field ────────────────────────────────────────────────────
 const AEField=({value,onChange,list,placeholder,id})=>(
   <div>
-    <input value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} list={id} style={{marginBottom:"0 !important"}}/>
+    <input value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} list={id}/>
     <datalist id={id}>{list.map(n=><option key={n} value={n}/>)}</datalist>
   </div>
 );
 
 export default function App(){
-  const [tab,setTab]                   =useState("dashboard");
-  const [opps,setOpps]                 =useState(INIT_OPPS);
-  const [selOpp,setSelOpp]             =useState(null);
+  const [tab,setTab]                    =useState("dashboard");
+  const [opps,setOpps]                  =useState([]);
+  const [dbReady,setDbReady]            =useState(false);
+  const [selOpp,setSelOpp]              =useState(null);
   const [oppDetailOpen,setOppDetailOpen]=useState(false);
-  const [showAddOpp,setShowAddOpp]     =useState(false);
-  const [editingOpp,setEditingOpp]     =useState(null);
-  const [newOpp,setNewOpp]             =useState({name:"",stage:"Discovery",value:"",wdAE:"",vndlyAE:""});
-  const [filterStage,setFilterStage]   =useState("all");
-  const [filterVndly,setFilterVndly]   =useState("all");
-  const [todos,setTodos]               =useState(INIT_TODOS);
-  const [cats,setCats]                 =useState(["work","urgent","home","personal","admin"]);
-  const [newCat,setNewCat]             =useState("");
-  const [showNewCat,setShowNewCat]     =useState(false);
-  const [newTodo,setNewTodo]           =useState("");
-  const [newTodoCat,setNewTodoCat]     =useState("work");
-  const [addingToCol,setAddingToCol]   =useState(null);
-  const [dragId,setDragId]             =useState(null);
-  const [dragOver,setDragOver]         =useState(null);
-  const [noteText,setNoteText]         =useState("");
-  const [noteVis,setNoteVis]           =useState("me");
-  const [noteDate,setNoteDate]         =useState(toInputDate(TODAY));
-  const [sessCost,setSessCost]         =useState(0);
-  const [reminder,setReminder]         =useState("Follow up with Acme Corp — due today");
-  const [earnMsgs,setEarnMsgs]         =useState([]);
-  const [earnInput,setEarnInput]       =useState("");
-  const [earnLoading,setEarnLoading]   =useState(false);
-  const [shareModal,setShareModal]     =useState(false);
-  const [calMsg,setCalMsg]             =useState(false);
-  const [news,setNews]                 =useState([]);
-  const [tldr,setTldr]                 =useState("");
-  const [newsLoading,setNewsLoading]   =useState(false);
-  const [newsError,setNewsError]       =useState(false);
-  const [londonWx,setLondonWx]         =useState(null);
-  const [localWx,setLocalWx]           =useState(null);
+  const [showAddOpp,setShowAddOpp]      =useState(false);
+  const [editingOpp,setEditingOpp]      =useState(null);
+  const [newOpp,setNewOpp]              =useState({name:"",stage:"Discovery",value:"",wdAE:"",vndlyAE:""});
+  const [filterStage,setFilterStage]    =useState("all");
+  const [filterVndly,setFilterVndly]    =useState("all");
+  const [todos,setTodos]                =useState([]);
+  const [cats,setCats]                  =useState(["work","urgent","home","personal","admin"]);
+  const [newCat,setNewCat]              =useState("");
+  const [showNewCat,setShowNewCat]      =useState(false);
+  const [newTodo,setNewTodo]            =useState("");
+  const [newTodoCat,setNewTodoCat]      =useState("work");
+  const [addingToCol,setAddingToCol]    =useState(null);
+  const [dragId,setDragId]              =useState(null);
+  const [dragOver,setDragOver]          =useState(null);
+  const [noteText,setNoteText]          =useState("");
+  const [noteVis,setNoteVis]            =useState("me");
+  const [noteDate,setNoteDate]          =useState(toInputDate(TODAY));
+  const [sessCost,setSessCost]          =useState(0);
+  const [reminder,setReminder]          =useState("Follow up with Acme Corp — due today");
+  const [earnMsgs,setEarnMsgs]          =useState([]);
+  const [earnInput,setEarnInput]        =useState("");
+  const [earnLoading,setEarnLoading]    =useState(false);
+  const [shareModal,setShareModal]      =useState(false);
+  const [calMsg,setCalMsg]              =useState(false);
+  const [news,setNews]                  =useState([]);
+  const [tldr,setTldr]                  =useState("");
+  const [newsLoading,setNewsLoading]    =useState(false);
+  const [newsError,setNewsError]        =useState(false);
+  const [londonWx,setLondonWx]          =useState(null);
+  const [localWx,setLocalWx]            =useState(null);
   const earnRef=useRef(null);
   const isMobile=window.innerWidth<768;
 
-  // Derived AE lists — always up to date from current opps
   const wdAEList  =[...new Set(opps.map(o=>o.wdAE).filter(Boolean))];
   const vndlyAEList=[...new Set(opps.map(o=>o.vndlyAE).filter(Boolean))];
 
+  // ── Supabase loaders ──────────────────────────────────────────────
+  const loadOpps=async()=>{
+    const {data,error}=await supabase.from("opps").select("*, notes(*)").order("created_at");
+    if(error){ console.error("Supabase opps error:",error); return; }
+    if(data) setOpps(data.map(o=>({
+      ...o, wdAE:o.wd_ae||"", vndlyAE:o.vndly_ae||"", last:o.last_activity||"Just now",
+      notes:(o.notes||[]).sort((a,b)=>new Date(b.note_date)-new Date(a.note_date)).map(n=>({
+        ...n, date:new Date(n.note_date), dateStr:fmtFull(new Date(n.note_date))
+      }))
+    })));
+    setDbReady(true);
+  };
+
+  const loadTodos=async()=>{
+    const {data,error}=await supabase.from("todos").select("*").order("created_at");
+    if(error){ console.error("Supabase todos error:",error); return; }
+    if(data) setTodos(data);
+  };
+
+  const dbAddOpp=async(opp)=>{
+    const {data}=await supabase.from("opps").insert({name:opp.name,stage:opp.stage,value:opp.value,wd_ae:opp.wdAE,vndly_ae:opp.vndlyAE,last_activity:"Just now"}).select().single();
+    if(data) setOpps(p=>[...p,{...data,wdAE:data.wd_ae,vndlyAE:data.vndly_ae,last:data.last_activity,notes:[]}]);
+  };
+
+  const dbUpdateOpp=async(id,fields)=>{
+    await supabase.from("opps").update({name:fields.name,stage:fields.stage,value:fields.value,wd_ae:fields.wdAE,vndly_ae:fields.vndlyAE,last_activity:"Just now"}).eq("id",id);
+    setOpps(p=>p.map(o=>o.id===id?{...o,...fields,last:"Just now"}:o));
+  };
+
+  const dbAddNote=async(oppId)=>{
+    if(!noteText.trim())return;
+    const d=fromInputDate(noteDate);
+    const {data}=await supabase.from("notes").insert({opp_id:oppId,text:noteText,vis:noteVis,note_date:d.toISOString()}).select().single();
+    if(data){
+      const newNote={...data,date:d,dateStr:fmtFull(d)};
+      setOpps(p=>p.map(o=>{
+        if(o.id!==oppId)return o;
+        const updated=[...o.notes,newNote].sort((a,b)=>new Date(b.date)-new Date(a.date));
+        return{...o,notes:updated};
+      }));
+    }
+    setNoteText("");setNoteDate(toInputDate(TODAY));
+  };
+
+  const dbUpdateNoteDate=async(oppId,nid,newDateStr)=>{
+    const d=fromInputDate(newDateStr);
+    await supabase.from("notes").update({note_date:d.toISOString()}).eq("id",nid);
+    setOpps(p=>p.map(o=>{
+      if(o.id!==oppId)return o;
+      const updated=o.notes.map(n=>n.id===nid?{...n,date:d,dateStr:fmtFull(d)}:n).sort((a,b)=>new Date(b.date)-new Date(a.date));
+      return{...o,notes:updated};
+    }));
+  };
+
+  const dbTogNoteVis=async(oppId,nid,vis)=>{
+    await supabase.from("notes").update({vis}).eq("id",nid);
+    setOpps(p=>p.map(o=>o.id===oppId?{...o,notes:o.notes.map(n=>n.id===nid?{...n,vis}:n)}:o));
+  };
+
+  const dbAddTodo=async(text,col,cat)=>{
+    const {data}=await supabase.from("todos").insert({text,col,cat,done:col==="done"}).select().single();
+    if(data) setTodos(p=>[...p,data]);
+  };
+
+  const dbMoveTodo=async(id,toCol)=>{
+    await supabase.from("todos").update({col:toCol,done:toCol==="done"}).eq("id",id);
+    setTodos(p=>p.map(t=>t.id===id?{...t,col:toCol,done:toCol==="done"}:t));
+  };
+
+  const dbUpdateTodo=async(id,text,cat)=>{
+    await supabase.from("todos").update({text,cat}).eq("id",id);
+    setTodos(p=>p.map(t=>t.id===id?{...t,text,cat}:t));
+  };
+
+  const dbDeleteTodo=async(id)=>{
+    await supabase.from("todos").delete().eq("id",id);
+    setTodos(p=>p.filter(t=>t.id!==id));
+  };
+
   useEffect(()=>{
     const c=localStorage.getItem("scc_cost3"); if(c)setSessCost(parseFloat(c)||0);
-    loadNews();
-    loadWeather();
+    loadOpps(); loadTodos(); loadNews(); loadWeather();
   },[]);
 
   useEffect(()=>{ if(earnRef.current)earnRef.current.scrollTop=earnRef.current.scrollHeight; },[earnMsgs]);
 
   const loadWeather=async()=>{
-    const [london, mktob] = await Promise.all([
+    const [london,mktob]=await Promise.all([
       fetchWeather(51.5074,-0.1278,"London"),
       fetchWeather(47.7764,10.6207,"Marktoberdorf"),
     ]);
-    setLondonWx(london);
-    setLocalWx(mktob);
-    // Also try actual current location — only show if different from both
+    setLondonWx(london); setLocalWx(mktob);
     if(navigator.geolocation){
       navigator.geolocation.getCurrentPosition(async pos=>{
         const {latitude:lat,longitude:lon}=pos.coords;
@@ -271,14 +333,10 @@ export default function App(){
     setNewsLoading(true);setNewsError(false);setNews([]);setTldr("");
     const articles=await fetchBBC();
     if(!articles){setNewsError(true);setNewsLoading(false);return;}
-    // Summaries and TLDR in parallel
     const [summaries,tldrText]=await Promise.all([summariseNews(articles),generateTLDR(articles)]);
     if(tldrText)setTldr(tldrText);
-    if(summaries?.length){
-      setNews(summaries.map((s,i)=>({...s,link:articles[i]?.link||"#",src:"BBC"})));
-    }else{
-      setNews(articles.map(a=>({title:a.title,summary:a.desc.slice(0,100),link:a.link,src:"BBC"})));
-    }
+    if(summaries?.length) setNews(summaries.map((s,i)=>({...s,link:articles[i]?.link||"#"})));
+    else setNews(articles.map(a=>({title:a.title,summary:a.desc.slice(0,100),link:a.link})));
     setNewsLoading(false);
   };
 
@@ -287,9 +345,35 @@ export default function App(){
     setSessCost(p=>{const n=p+cost;localStorage.setItem("scc_cost3",n.toFixed(6));return n;});
   };
 
+  const addOpp=()=>{
+    if(!newOpp.name.trim())return;
+    dbAddOpp(newOpp);
+    setNewOpp({name:"",stage:"Discovery",value:"",wdAE:"",vndlyAE:""});
+    setShowAddOpp(false);
+  };
+
+  const saveOppEdit=(id,fields)=>dbUpdateOpp(id,fields);
+  const moveTodo=(id,toCol)=>dbMoveTodo(id,toCol);
+  const addNote=(oppId)=>dbAddNote(oppId);
+  const updateNoteDate=(oppId,nid,newDateStr)=>dbUpdateNoteDate(oppId,nid,newDateStr);
+  const togNoteVis=(oppId,nid,vis)=>dbTogNoteVis(oppId,nid,vis);
+
+  const getStepReminder=(msgCount)=>{
+    if(msgCount===0)return "You are at STEP 1. Introduce yourself briefly then ask the STEP 1 question.";
+    if(msgCount===1)return "You are at STEP 2. Ask the STEP 2 question only. Do not add anything else.";
+    if(msgCount===2)return "You are at STEP 3. Ask the STEP 3 question only. Do not add anything else.";
+    if(msgCount===3)return "You are at STEP 4. Ask the STEP 4 question only. Do not add anything else.";
+    if(msgCount===4)return "You are at STEP 5. Ask the STEP 5 question only. Do not add anything else.";
+    return "You now have all five answers. Proceed to STEP 6 and produce the final output only. No preamble.";
+  };
+
   const sendEARN=async msg=>{
-    const msgs=[...earnMsgs,{role:"user",content:msg}];
-    setEarnMsgs(msgs);setEarnInput("");setEarnLoading(true);
+    const assistantMsgCount=earnMsgs.filter(m=>m.role==="assistant").length;
+    const reminder=getStepReminder(assistantMsgCount);
+    const augmentedMsg=msg==="Start"?`[${reminder}]`:`${msg}\n\n[${reminder}]`;
+    const msgs=[...earnMsgs,{role:"user",content:augmentedMsg}];
+    setEarnMsgs(p=>[...p,{role:"user",content:msg}]);
+    setEarnInput("");setEarnLoading(true);
     try{
       const {text,usage}=await claudeCall(msgs,EARN_SYSTEM);
       setEarnMsgs(p=>[...p,{role:"assistant",content:text||"Error."}]);
@@ -300,40 +384,6 @@ export default function App(){
 
   const startEARN=opp=>{setEarnMsgs([]);setTab("earn");setTimeout(()=>sendEARN(`Initiate EARN note. Opportunity: ${opp.name}, Stage: ${opp.stage}, Value: ${opp.value}`),50);};
 
-  const moveTodo=(id,toCol)=>setTodos(p=>p.map(t=>t.id===id?{...t,col:toCol,done:toCol==="done"}:t));
-
-  const addNote=oppId=>{
-    if(!noteText.trim())return;
-    const d=fromInputDate(noteDate);
-    setOpps(p=>p.map(o=>{
-      if(o.id!==oppId)return o;
-      const updated=[...o.notes,{id:Date.now(),text:noteText,vis:noteVis,date:d,dateStr:fmtFull(d)}];
-      updated.sort((a,b)=>new Date(b.date)-new Date(a.date));
-      return{...o,notes:updated};
-    }));
-    setNoteText("");setNoteDate(toInputDate(TODAY));
-  };
-
-  const updateNoteDate=(oppId,nid,newDateStr)=>{
-    setOpps(p=>p.map(o=>{
-      if(o.id!==oppId)return o;
-      const updated=o.notes.map(n=>n.id===nid?{...n,date:fromInputDate(newDateStr),dateStr:fmtFull(fromInputDate(newDateStr))}:n);
-      updated.sort((a,b)=>new Date(b.date)-new Date(a.date));
-      return{...o,notes:updated};
-    }));
-  };
-
-  const togNoteVis=(oppId,nid,vis)=>setOpps(p=>p.map(o=>o.id===oppId?{...o,notes:o.notes.map(n=>n.id===nid?{...n,vis}:n)}:o));
-
-  const addOpp=()=>{
-    if(!newOpp.name.trim())return;
-    setOpps(p=>[...p,{id:Date.now(),...newOpp,last:"Just now",notes:[]}]);
-    setNewOpp({name:"",stage:"Discovery",value:"",wdAE:"",vndlyAE:""});
-    setShowAddOpp(false);
-  };
-
-  const saveOppEdit=(id,fields)=>setOpps(p=>p.map(o=>o.id===id?{...o,...fields,last:"Just now"}:o));
-
   const filteredOpps=opps.filter(o=>(filterStage==="all"||o.stage===filterStage)&&(filterVndly==="all"||o.vndlyAE===filterVndly));
   const curOpp=opps.find(o=>o.id===selOpp);
   const openCount=todos.filter(t=>!t.done).length;
@@ -342,26 +392,24 @@ export default function App(){
   const badge=(bg,c)=>({background:bg,color:c,fontSize:11,padding:"2px 8px",borderRadius:4,fontWeight:500,display:"inline-block"});
   const calDays=BOARD_COLS.slice(1,6).map(col=>({label:col.label,date:col.date,events:CAL.filter(e=>e.date.toDateString()===col.date?.toDateString())}));
 
-  // ── Weather card ──────────────────────────────────────────────────
   const WxCard=({wx})=>wx?(
-    <div style={{background:BG3,border:`1px solid ${BOR}`,borderRadius:10,padding:"10px 12px",flex:1,minWidth:0}}>
+    <div style={{background:BG3,border:`1px solid ${BOR}`,borderRadius:10,padding:"10px 12px",flex:1,minWidth:120}}>
       <div style={{fontSize:11,color:TXS,marginBottom:4}}>{wx.label}</div>
       <div style={{display:"flex",alignItems:"center",gap:8}}>
-        <span style={{fontSize:28}}>{wx.icon}</span>
+        <span style={{fontSize:26}}>{wx.icon}</span>
         <div>
           <div style={{fontSize:18,fontWeight:500,color:TX}}>{wx.temp}°C</div>
           <div style={{fontSize:11,color:TXS}}>{wx.desc}</div>
         </div>
       </div>
-      <div style={{display:"flex",gap:10,marginTop:6,fontSize:11,color:TXS,flexWrap:"wrap"}}>
+      <div style={{display:"flex",gap:8,marginTop:6,fontSize:11,color:TXS,flexWrap:"wrap"}}>
         <span>↑{wx.hi}° ↓{wx.lo}°</span>
-        <span>💨 {wx.wind} km/h</span>
-        <span>🌧️ {wx.rain}%</span>
+        <span>💨{wx.wind}km/h</span>
+        <span>🌧️{wx.rain}%</span>
       </div>
     </div>
   ):null;
 
-  // ── Opp edit form ─────────────────────────────────────────────────
   const OppEditForm=({opp,onSave,onCancel})=>{
     const [f,setF]=useState({name:opp.name,stage:opp.stage,value:opp.value,wdAE:opp.wdAE,vndlyAE:opp.vndlyAE});
     return(
@@ -386,7 +434,6 @@ export default function App(){
     );
   };
 
-  // ── Todo card with edit ───────────────────────────────────────────
   const TodoCard=({t})=>{
     const [editing,setEditing]=useState(false);
     const [text,setText]=useState(t.text);
@@ -401,8 +448,8 @@ export default function App(){
           {cats.map(c=><option key={c} value={c}>{c}</option>)}
         </select>
         <div style={{display:"flex",gap:4}}>
-          <button onClick={()=>{setTodos(p=>p.map(x=>x.id===t.id?{...x,text,cat}:x));setEditing(false);}} style={{flex:1,fontSize:11,padding:"4px",borderRadius:5,background:ACC,color:"#fff",border:"none",cursor:"pointer"}}>Save</button>
-          <button onClick={()=>setTodos(p=>p.filter(x=>x.id!==t.id))} style={{fontSize:11,padding:"4px 6px",borderRadius:5,background:"rgba(239,68,68,0.15)",border:"1px solid #ef4444",color:"#f87171",cursor:"pointer"}}>Del</button>
+          <button onClick={()=>{dbUpdateTodo(t.id,text,cat);setEditing(false);}} style={{flex:1,fontSize:11,padding:"4px",borderRadius:5,background:ACC,color:"#fff",border:"none",cursor:"pointer"}}>Save</button>
+          <button onClick={()=>dbDeleteTodo(t.id)} style={{fontSize:11,padding:"4px 6px",borderRadius:5,background:"rgba(239,68,68,0.15)",border:"1px solid #ef4444",color:"#f87171",cursor:"pointer"}}>Del</button>
           <button onClick={()=>setEditing(false)} style={{fontSize:11,padding:"4px 6px",borderRadius:5,background:"transparent",border:`1px solid ${BOR2}`,color:TXS,cursor:"pointer"}}>✕</button>
         </div>
       </div>
@@ -419,8 +466,7 @@ export default function App(){
     );
   };
 
-  // ── Note panel ────────────────────────────────────────────────────
-  const NotePanel=({opp,mobile})=>(
+  const NotePanel=({opp})=>(
     <div>
       <div style={{fontSize:13,fontWeight:500,color:TXM,marginBottom:10}}>Notes</div>
       {opp.notes.length===0&&<div style={{fontSize:13,color:TXS,marginBottom:10}}>No notes yet.</div>}
@@ -431,7 +477,7 @@ export default function App(){
             <input type="date" defaultValue={toInputDate(new Date(n.date))}
               onChange={e=>updateNoteDate(opp.id,n.id,e.target.value)}
               style={{fontSize:"11px !important",padding:"2px 6px !important",width:"auto !important",background:`${BG2} !important`,color:`${TXS} !important`,border:`1px solid ${BOR2} !important`,borderRadius:"4px !important",cursor:"pointer"}}/>
-            <span style={{fontSize:11,color:TXS}}>{n.dateStr||fmtFull(new Date(n.date))}</span>
+            <span style={{fontSize:11,color:TXS}}>{n.dateStr}</span>
             <select value={n.vis} onChange={e=>togNoteVis(opp.id,n.id,e.target.value)}
               style={{fontSize:"11px !important",padding:"2px 6px !important",width:"auto !important",background:`${visC(n.vis).bg} !important`,color:`${visC(n.vis).c} !important`,border:"none !important",borderRadius:"4px !important",cursor:"pointer",marginLeft:"auto"}}>
               <option value="me">Only me</option><option value="ae">Me + AE</option><option value="manager">All</option>
@@ -509,10 +555,8 @@ export default function App(){
 
         <main style={{flex:1,padding:isMobile?12:24,minWidth:0,overflowX:"hidden"}}>
 
-          {/* DASHBOARD */}
           {tab==="dashboard"&&(
             <div>
-              {/* Greeting + Weather row */}
               <div style={{...card,marginBottom:16,display:"flex",alignItems:"stretch",justifyContent:"space-between",gap:16,flexWrap:"wrap"}}>
                 <div style={{display:"flex",flexDirection:"column",justifyContent:"center"}}>
                   <div style={{fontSize:22,fontWeight:500,color:TX}}>Good morning 👋</div>
@@ -528,7 +572,9 @@ export default function App(){
               <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:12}}>
                 <div style={card}>
                   <div style={{fontSize:12,fontWeight:500,color:TXS,marginBottom:10,textTransform:"uppercase",letterSpacing:"0.06em"}}>Opportunities</div>
-                  {opps.slice(0,5).map(o=>(
+                  {!dbReady&&<div style={{fontSize:13,color:TXS}}>Connecting to database…</div>}
+                  {dbReady&&opps.length===0&&<div style={{fontSize:13,color:TXS}}>No opportunities yet. Add one in the Opps tab.</div>}
+                  {dbReady&&opps.slice(0,5).map(o=>(
                     <div key={o.id} onClick={()=>{setSelOpp(o.id);setTab("opps");setOppDetailOpen(true);}} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 0",borderBottom:`1px solid ${BOR}`,cursor:"pointer",gap:8}}>
                       <div style={{minWidth:0}}>
                         <div style={{fontSize:13,fontWeight:500,color:TX,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{o.name}</div>
@@ -538,6 +584,7 @@ export default function App(){
                     </div>
                   ))}
                 </div>
+
                 <div style={card}>
                   <div style={{fontSize:12,fontWeight:500,color:TXS,marginBottom:10,textTransform:"uppercase",letterSpacing:"0.06em"}}>Open tasks</div>
                   {todos.filter(t=>!t.done).slice(0,5).map(t=>(
@@ -548,6 +595,7 @@ export default function App(){
                     </div>
                   ))}
                 </div>
+
                 <div style={card}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
                     <span style={{fontSize:12,fontWeight:500,color:TXS,textTransform:"uppercase",letterSpacing:"0.06em"}}>This week</span>
@@ -562,6 +610,7 @@ export default function App(){
                     </div>
                   ))}
                 </div>
+
                 <div style={card}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                     <span style={{fontSize:12,fontWeight:500,color:TXS,textTransform:"uppercase",letterSpacing:"0.06em"}}>BBC News</span>
@@ -579,7 +628,6 @@ export default function App(){
             </div>
           )}
 
-          {/* OPPORTUNITIES */}
           {tab==="opps"&&(
             <div>
               {(!oppDetailOpen||!isMobile)&&(
@@ -681,13 +729,12 @@ export default function App(){
                     <button onClick={()=>startEARN(curOpp)} style={{fontSize:12,padding:"3px 10px",borderRadius:6,border:`1px solid ${ACC}`,cursor:"pointer",background:ACL,color:"#a78bfa",fontWeight:500}}>✨ EARN</button>
                     <button onClick={()=>setShareModal(true)} style={{fontSize:12,padding:"3px 10px",borderRadius:6,border:`1px solid ${BOR2}`,cursor:"pointer",background:BG3,color:TXS}}>Share</button>
                   </div>
-                  <NotePanel opp={curOpp} mobile/>
+                  <NotePanel opp={curOpp}/>
                 </div>
               )}
             </div>
           )}
 
-          {/* BOARD */}
           {tab==="todos"&&(
             <div>
               <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
@@ -721,13 +768,13 @@ export default function App(){
                         {addingToCol===col.id?(
                           <div>
                             <input value={newTodo} onChange={e=>setNewTodo(e.target.value)}
-                              onKeyDown={e=>{if(e.key==="Enter"&&newTodo.trim()){setTodos(p=>[...p,{id:Date.now(),text:newTodo,col:col.id,cat:newTodoCat,done:col.id==="done"}]);setNewTodo("");setAddingToCol(null);}if(e.key==="Escape")setAddingToCol(null);}}
+                              onKeyDown={e=>{if(e.key==="Enter"&&newTodo.trim()){dbAddTodo(newTodo,col.id,newTodoCat);setNewTodo("");setAddingToCol(null);}if(e.key==="Escape")setAddingToCol(null);}}
                               placeholder="Task…" autoFocus style={{marginBottom:"4px !important",fontSize:"12px !important",padding:"5px 7px !important"}}/>
                             <select value={newTodoCat} onChange={e=>setNewTodoCat(e.target.value)} style={{marginBottom:"4px !important",fontSize:"11px !important",padding:"3px 6px !important"}}>
                               {cats.map(c=><option key={c} value={c}>{c}</option>)}
                             </select>
                             <div style={{display:"flex",gap:4}}>
-                              <button onClick={()=>{if(newTodo.trim()){setTodos(p=>[...p,{id:Date.now(),text:newTodo,col:col.id,cat:newTodoCat,done:col.id==="done"}]);setNewTodo("");setAddingToCol(null);}}} style={{flex:1,fontSize:11,padding:"4px",borderRadius:5,background:ACC,color:"#fff",border:"none",cursor:"pointer"}}>Add</button>
+                              <button onClick={()=>{if(newTodo.trim()){dbAddTodo(newTodo,col.id,newTodoCat);setNewTodo("");setAddingToCol(null);}}} style={{flex:1,fontSize:11,padding:"4px",borderRadius:5,background:ACC,color:"#fff",border:"none",cursor:"pointer"}}>Add</button>
                               <button onClick={()=>{setNewTodo("");setAddingToCol(null);}} style={{fontSize:11,padding:"4px 6px",borderRadius:5,background:"transparent",border:`1px solid ${BOR2}`,color:TXS,cursor:"pointer"}}>✕</button>
                             </div>
                           </div>
@@ -744,7 +791,6 @@ export default function App(){
             </div>
           )}
 
-          {/* CALENDAR */}
           {tab==="calendar"&&(
             <div>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
@@ -782,7 +828,6 @@ export default function App(){
             </div>
           )}
 
-          {/* NEWS */}
           {tab==="news"&&(
             <div>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
@@ -818,7 +863,6 @@ export default function App(){
             </div>
           )}
 
-          {/* EARN */}
           {tab==="earn"&&(
             <div>
               <div style={{fontSize:15,fontWeight:500,color:TX,marginBottom:4}}>EARN note generator</div>
