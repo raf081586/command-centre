@@ -439,11 +439,22 @@ export default function App(){
     const [text,setText]=useState(t.text);
     const [cat,setCatLocal]=useState(t.cat);
     const taRef=useRef(null);
-    useEffect(()=>{ if(editing&&taRef.current){taRef.current.style.height="auto";taRef.current.style.height=taRef.current.scrollHeight+"px";} },[editing,text]);
+    useEffect(()=>{
+      if(editing&&taRef.current){
+        taRef.current.style.height="auto";
+        taRef.current.style.height=Math.max(taRef.current.scrollHeight, 52)+"px";
+      }
+    },[editing,text]);
+    const handleTextChange=e=>{
+      setText(e.target.value);
+      e.target.style.height="auto";
+      e.target.style.height=Math.max(e.target.scrollHeight, 52)+"px";
+    };
     if(editing) return(
       <div style={{background:BG2,border:`1px solid ${ACC}`,borderRadius:7,padding:"8px",marginBottom:5}}>
-        <textarea ref={taRef} value={text} onChange={e=>{setText(e.target.value);e.target.style.height="auto";e.target.style.height=e.target.scrollHeight+"px";}}
-          style={{marginBottom:"6px !important",fontSize:"12px !important",padding:"4px 7px !important",resize:"none",overflow:"hidden",minHeight:32}}/>
+        <textarea ref={taRef} value={text} onChange={handleTextChange}
+          rows={2}
+          style={{marginBottom:"6px !important",fontSize:"12px !important",padding:"6px 7px !important",resize:"none",overflow:"hidden",minHeight:52,lineHeight:1.5,wordBreak:"break-word"}}/>
         <select value={cat} onChange={e=>setCatLocal(e.target.value)} style={{marginBottom:"6px !important",fontSize:"11px !important",padding:"3px 6px !important"}}>
           {cats.map(c=><option key={c} value={c}>{c}</option>)}
         </select>
@@ -458,7 +469,7 @@ export default function App(){
       <div draggable onDragStart={()=>setDragId(t.id)}
         style={{background:BG2,border:`1px solid ${BOR}`,borderRadius:7,padding:"7px 8px",marginBottom:5,cursor:"grab",opacity:t.done?0.5:1,userSelect:"none"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:4,marginBottom:4}}>
-          <div style={{fontSize:12,color:t.done?TXS:TXM,textDecoration:t.done?"line-through":"none",lineHeight:1.4,flex:1}}>{t.text}</div>
+          <div style={{fontSize:12,color:t.done?TXS:TXM,textDecoration:t.done?"line-through":"none",lineHeight:1.4,flex:1,wordBreak:"break-word"}}>{t.text}</div>
           <button onClick={()=>setEditing(true)} style={{background:"none",border:"none",cursor:"pointer",color:TXS,fontSize:12,padding:0,flexShrink:0,lineHeight:1}}>✎</button>
         </div>
         <span style={{fontSize:10,padding:"1px 5px",borderRadius:8,background:catC(t.cat).bg,color:catC(t.cat).c}}>{t.cat}</span>
@@ -502,7 +513,7 @@ export default function App(){
   );
 
   return(
-    <div style={{background:BG,minHeight:"100vh",fontFamily:"system-ui,sans-serif",color:TX,paddingBottom:isMobile?64:0}}>
+    <div style={{background:BG,minHeight:"100vh",    fontFamily:"system-ui,sans-serif",color:TX,paddingBottom:isMobile?80:0}}>
       <style>{`
         *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
         ::-webkit-scrollbar{width:3px;height:3px;}
@@ -908,7 +919,7 @@ export default function App(){
       </div>
 
       {isMobile&&(
-        <nav style={{position:"fixed",bottom:0,left:0,right:0,background:BG2,borderTop:`1px solid ${BOR}`,display:"flex",zIndex:50,height:56}}>
+        <nav style={{position:"fixed",bottom:0,left:0,right:0,background:BG2,borderTop:`1px solid ${BOR}`,display:"flex",zIndex:50,height:64,paddingBottom:"env(safe-area-inset-bottom, 8px)"}}>
           {TAB_ITEMS.map(({k,lb,em})=>(
             <button key={k} onClick={()=>{setTab(k);setOppDetailOpen(false);}} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:2,border:"none",background:"none",cursor:"pointer",color:tab===k?ACC:TXS,padding:"6px 0"}}>
               <span style={{fontSize:18}}>{em}</span>
