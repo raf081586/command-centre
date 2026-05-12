@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 
+// ── API endpoint — uses Vercel proxy in production ────────────────────
+const API = "/api/claude";
+
 const EARN_SYSTEM = `You are an expert solution consultant. Your tone is efficient, clear, and helpful.
 Core Directive: Your goal is to guide a user through the EARN framework to generate a structured summary of a prospect engagement, ready to be logged in a CRM like Salesforce. YOU NEVER USE AMERICAN ENGLISH, ALWAYS AND ONLY BRITISH ENGLISH!
 Step 1: When invoked, say exactly: "I'm the EARN Comments Generator. I'll help you create a structured summary of your latest prospect engagement for Salesforce. Let's get started." Then ask Step 2.
@@ -27,40 +30,44 @@ Next Steps
 ______________________________________`;
 
 // ── Date helpers ──────────────────────────────────────────────────────
-const TODAY = new Date();
-const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
-const fmtDay  = d => d.toLocaleDateString("en-GB", { weekday: "short" });
-const fmtShort= d => d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-const getMonday = d => { const x=new Date(d); const day=x.getDay(); x.setDate(x.getDate()+(day===0?-6:1-day)); return x; };
-const MONDAY  = getMonday(TODAY);
-const todayStr= TODAY.toLocaleDateString("en-GB", { weekday:"long", day:"numeric", month:"long", year:"numeric" });
+const TODAY    = new Date();
+const addDays  = (d,n)=>{ const x=new Date(d); x.setDate(x.getDate()+n); return x; };
+const fmtDay   = d=>d.toLocaleDateString("en-GB",{weekday:"short"});
+const fmtShort = d=>d.toLocaleDateString("en-GB",{day:"numeric",month:"short"});
+const fmtFull  = d=>d.toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"});
+const toInputDate = d=>d.toISOString().slice(0,10);
+const fromInputDate= s=>{ const d=new Date(s); d.setHours(12); return d; };
 
-const buildCols = () => {
-  const mon = getMonday(TODAY);
-  const isToday = d => d.toDateString() === TODAY.toDateString();
-  const dayLabel = d => isToday(d) ? "Today" : d.toLocaleDateString("en-GB", { weekday:"short", day:"numeric" });
+const getMonday = d=>{ const x=new Date(d); const day=x.getDay(); x.setDate(x.getDate()+(day===0?-6:1-day)); return x; };
+const MONDAY   = getMonday(TODAY);
+const todayStr = TODAY.toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
+
+const buildCols=()=>{
+  const mon=getMonday(TODAY);
+  const isToday=d=>d.toDateString()===TODAY.toDateString();
+  const dayLabel=d=>isToday(d)?"Today":d.toLocaleDateString("en-GB",{weekday:"short",day:"numeric"});
   return [
-    { id:"urgent", label:"Urgent",              accent:"#ef4444", date:TODAY },
-    { id:"mon",    label:dayLabel(mon),          accent:isToday(mon)?"#f97316":"#8b5cf6", date:mon },
-    { id:"tue",    label:dayLabel(addDays(mon,1)),accent:isToday(addDays(mon,1))?"#f97316":"#8b5cf6", date:addDays(mon,1) },
-    { id:"wed",    label:dayLabel(addDays(mon,2)),accent:isToday(addDays(mon,2))?"#f97316":"#8b5cf6", date:addDays(mon,2) },
-    { id:"thu",    label:dayLabel(addDays(mon,3)),accent:isToday(addDays(mon,3))?"#f97316":"#8b5cf6", date:addDays(mon,3) },
-    { id:"fri",    label:dayLabel(addDays(mon,4)),accent:isToday(addDays(mon,4))?"#f97316":"#8b5cf6", date:addDays(mon,4) },
-    { id:"later",  label:"Later",               accent:"#3b82f6", date:null },
-    { id:"done",   label:"Done",                accent:"#22c55e", date:null },
+    {id:"urgent",label:"Urgent",          accent:"#ef4444",date:TODAY},
+    {id:"mon",   label:dayLabel(mon),     accent:isToday(mon)?"#f97316":"#8b5cf6",date:mon},
+    {id:"tue",   label:dayLabel(addDays(mon,1)),accent:isToday(addDays(mon,1))?"#f97316":"#8b5cf6",date:addDays(mon,1)},
+    {id:"wed",   label:dayLabel(addDays(mon,2)),accent:isToday(addDays(mon,2))?"#f97316":"#8b5cf6",date:addDays(mon,2)},
+    {id:"thu",   label:dayLabel(addDays(mon,3)),accent:isToday(addDays(mon,3))?"#f97316":"#8b5cf6",date:addDays(mon,3)},
+    {id:"fri",   label:dayLabel(addDays(mon,4)),accent:isToday(addDays(mon,4))?"#f97316":"#8b5cf6",date:addDays(mon,4)},
+    {id:"later", label:"Later",           accent:"#3b82f6",date:null},
+    {id:"done",  label:"Done",            accent:"#22c55e",date:null},
   ];
 };
-const BOARD_COLS = buildCols();
+const BOARD_COLS=buildCols();
 
 // ── Colours ───────────────────────────────────────────────────────────
-const STAGE_C = {
-  "Discovery":   {bg:"#1a3a5c",c:"#7ab8f5"},
-  "Proposal":    {bg:"#3a2e0a",c:"#f5c842"},
-  "Negotiation": {bg:"#2a1a5c",c:"#a78bfa"},
-  "Closed Won":  {bg:"#0a3020",c:"#4ade80"},
-  "Closed Lost": {bg:"#3a1010",c:"#f87171"},
+const STAGE_C={
+  "Discovery":  {bg:"#1a3a5c",c:"#7ab8f5"},
+  "Proposal":   {bg:"#3a2e0a",c:"#f5c842"},
+  "Negotiation":{bg:"#2a1a5c",c:"#a78bfa"},
+  "Closed Won": {bg:"#0a3020",c:"#4ade80"},
+  "Closed Lost":{bg:"#3a1010",c:"#f87171"},
 };
-const CAT_C = {
+const CAT_C={
   work:    {bg:"#1a2a4a",c:"#60a5fa",b:"#3b82f6"},
   urgent:  {bg:"#3a1515",c:"#f87171",b:"#ef4444"},
   home:    {bg:"#0f2a1a",c:"#4ade80",b:"#22c55e"},
@@ -84,11 +91,11 @@ const TAB_ITEMS=[
   {k:"earn",     lb:"EARN", em:"✨"},
 ];
 
-const INIT_OPPS = [
-  {id:1,name:"Acme Corp",  stage:"Proposal",   value:"£84,000", wdAE:"Sarah K.", vndlyAE:"Tom R.",  last:"2h ago", notes:[]},
-  {id:2,name:"Globex Ltd", stage:"Discovery",  value:"£32,000", wdAE:"James L.", vndlyAE:"",        last:"1d ago", notes:[]},
-  {id:3,name:"Initech",    stage:"Negotiation",value:"£120,000",wdAE:"Sarah K.", vndlyAE:"Tom R.",  last:"3h ago", notes:[]},
-  {id:4,name:"Umbrella Co",stage:"Closed Won", value:"£55,000", wdAE:"James L.", vndlyAE:"Nina P.", last:"5d ago", notes:[]},
+const INIT_OPPS=[
+  {id:1,name:"Acme Corp",  stage:"Proposal",   value:"£84,000", wdAE:"Sarah K.", vndlyAE:"Tom R.",  last:"2h ago",notes:[]},
+  {id:2,name:"Globex Ltd", stage:"Discovery",  value:"£32,000", wdAE:"James L.", vndlyAE:"",        last:"1d ago",notes:[]},
+  {id:3,name:"Initech",    stage:"Negotiation",value:"£120,000",wdAE:"Sarah K.", vndlyAE:"Tom R.",  last:"3h ago",notes:[]},
+  {id:4,name:"Umbrella Co",stage:"Closed Won", value:"£55,000", wdAE:"James L.", vndlyAE:"Nina P.", last:"5d ago",notes:[]},
 ];
 
 const INIT_TODOS=[
@@ -111,97 +118,161 @@ const CAL_SAMPLE=[
 const CAL=CAL_SAMPLE.map(e=>({...e,date:addDays(MONDAY,e.offset),day:addDays(MONDAY,e.offset).toLocaleDateString("en-GB",{weekday:"short"})}));
 
 // ── BBC News ──────────────────────────────────────────────────────────
-const fetchBBC = async () => {
-  const urls = [
-    `https://corsproxy.io/?url=${encodeURIComponent("https://feeds.bbci.co.uk/news/business/rss.xml")}`,
-    `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent("https://feeds.bbci.co.uk/news/business/rss.xml")}`,
-  ];
-  // Try rss2json first — returns clean JSON
-  try {
-    const res  = await fetch(urls[1]);
-    const json = await res.json();
-    if (json.status === "ok" && json.items?.length) {
-      return json.items.slice(0,8).map(i=>({title:i.title,desc:i.description?.replace(/<[^>]+>/g,"")||"",link:i.link}));
-    }
-  } catch {}
-  // Fallback: corsproxy raw XML
-  try {
-    const res  = await fetch(urls[0]);
-    const text = await res.text();
-    const xml  = new DOMParser().parseFromString(text,"text/xml");
+const fetchBBC=async()=>{
+  try{
+    const res=await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent("https://feeds.bbci.co.uk/news/business/rss.xml")}`);
+    const json=await res.json();
+    if(json.status==="ok"&&json.items?.length)
+      return json.items.slice(0,8).map(i=>({title:i.title,desc:(i.description||"").replace(/<[^>]+>/g,""),link:i.link}));
+  }catch{}
+  try{
+    const res=await fetch(`https://corsproxy.io/?url=${encodeURIComponent("https://feeds.bbci.co.uk/news/business/rss.xml")}`);
+    const text=await res.text();
+    const xml=new DOMParser().parseFromString(text,"text/xml");
     return Array.from(xml.querySelectorAll("item")).slice(0,8).map(i=>({
       title:i.querySelector("title")?.textContent||"",
-      desc: i.querySelector("description")?.textContent?.replace(/<[^>]+>/g,"")||"",
-      link: i.querySelector("link")?.textContent||"#",
+      desc:(i.querySelector("description")?.textContent||"").replace(/<[^>]+>/g,""),
+      link:i.querySelector("link")?.textContent||"#",
     }));
-  } catch {}
+  }catch{}
   return null;
 };
 
-const summariseNews = async (articles) => {
-  try {
-    const res=await fetch("https://api.anthropic.com/v1/messages",{
-      method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:600,
-        messages:[{role:"user",content:`Summarise each headline into one plain sentence of max 12 words. Return ONLY a JSON array like [{"title":"...","summary":"..."}]. No markdown.\n\n${articles.map((a,i)=>`${i+1}. ${a.title}: ${a.desc.slice(0,120)}`).join("\n")}`}]})
-    });
-    const data=await res.json();
-    const text=data.content?.map(c=>c.text||"").join("")||"[]";
-    return JSON.parse(text.replace(/```json|```/g,"").trim());
-  } catch { return null; }
+const claudeCall=async(messages,system="")=>{
+  const body={model:"claude-sonnet-4-20250514",max_tokens:800,messages};
+  if(system)body.system=system;
+  const res=await fetch(API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+  const data=await res.json();
+  return{text:data.content?.map(c=>c.text||"").join("")||"",usage:data.usage};
 };
 
-// ── Main component ────────────────────────────────────────────────────
-export default function App() {
-  const [tab,setTab]             = useState("dashboard");
-  const [opps,setOpps]           = useState(INIT_OPPS);
-  const [selOpp,setSelOpp]       = useState(null);
+const summariseNews=async articles=>{
+  try{
+    const {text}=await claudeCall([{role:"user",content:`Summarise each headline into one plain sentence max 12 words. Return ONLY a JSON array like [{"title":"...","summary":"..."}]. No markdown.\n\n${articles.map((a,i)=>`${i+1}. ${a.title}: ${a.desc.slice(0,120)}`).join("\n")}`}]);
+    return JSON.parse(text.replace(/```json|```/g,"").trim());
+  }catch{return null;}
+};
+
+const generateTLDR=async articles=>{
+  try{
+    const {text}=await claudeCall([{role:"user",content:`Write a single 2-3 sentence TL;DR summary of today's top business news based on these headlines. Be concise and direct. British English only.\n\n${articles.map(a=>a.title).join("\n")}`}]);
+    return text.trim();
+  }catch{return null;}
+};
+
+// ── Weather ───────────────────────────────────────────────────────────
+const WMO_CODES={0:"Clear",1:"Mostly clear",2:"Partly cloudy",3:"Overcast",45:"Foggy",48:"Foggy",51:"Light drizzle",53:"Drizzle",55:"Heavy drizzle",61:"Light rain",63:"Rain",65:"Heavy rain",71:"Light snow",73:"Snow",75:"Heavy snow",80:"Showers",81:"Showers",82:"Heavy showers",95:"Thunderstorm",96:"Thunderstorm",99:"Thunderstorm"};
+const WMO_ICON={0:"☀️",1:"🌤️",2:"⛅",3:"☁️",45:"🌫️",48:"🌫️",51:"🌦️",53:"🌦️",55:"🌧️",61:"🌦️",63:"🌧️",65:"🌧️",71:"🌨️",73:"❄️",75:"❄️",80:"🌧️",81:"🌧️",82:"⛈️",95:"⛈️",96:"⛈️",99:"⛈️"};
+
+const fetchWeather=async(lat,lon,label)=>{
+  try{
+    const url=`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weathercode,windspeed_10m&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=1`;
+    const res=await fetch(url);
+    const d=await res.json();
+    const code=d.current.weathercode;
+    return{
+      label,
+      temp:Math.round(d.current.temperature_2m),
+      icon:WMO_ICON[code]||"🌡️",
+      desc:WMO_CODES[code]||"",
+      wind:Math.round(d.current.windspeed_10m),
+      rain:d.daily.precipitation_probability_max[0]||0,
+      hi:Math.round(d.daily.temperature_2m_max[0]),
+      lo:Math.round(d.daily.temperature_2m_min[0]),
+    };
+  }catch{return null;}
+};
+
+// ── AE combo field ────────────────────────────────────────────────────
+const AEField=({value,onChange,list,placeholder,id})=>(
+  <div>
+    <input value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} list={id} style={{marginBottom:"0 !important"}}/>
+    <datalist id={id}>{list.map(n=><option key={n} value={n}/>)}</datalist>
+  </div>
+);
+
+export default function App(){
+  const [tab,setTab]                   =useState("dashboard");
+  const [opps,setOpps]                 =useState(INIT_OPPS);
+  const [selOpp,setSelOpp]             =useState(null);
   const [oppDetailOpen,setOppDetailOpen]=useState(false);
-  const [showAddOpp,setShowAddOpp]=useState(false);
-  const [editingOpp,setEditingOpp]=useState(null); // id of opp being edited
-  const [newOpp,setNewOpp]       = useState({name:"",stage:"Discovery",value:"",wdAE:"",vndlyAE:""});
-  const [filterStage,setFilterStage]=useState("all");
-  const [filterVndly,setFilterVndly]=useState("all");
-  const [todos,setTodos]         = useState(INIT_TODOS);
-  const [editingTodo,setEditingTodo]=useState(null);
-  const [noteText,setNoteText]   = useState("");
-  const [noteVis,setNoteVis]     = useState("me");
-  const [sessCost,setSessCost]   = useState(0);
-  const [reminder,setReminder]   = useState("Follow up with Acme Corp — due today");
-  const [cats,setCats]           = useState(["work","urgent","home","personal","admin"]);
-  const [newCat,setNewCat]       = useState("");
-  const [showNewCat,setShowNewCat]=useState(false);
-  const [newTodo,setNewTodo]     = useState("");
-  const [newTodoCat,setNewTodoCat]=useState("work");
-  const [addingToCol,setAddingToCol]=useState(null);
-  const [dragId,setDragId]       = useState(null);
-  const [dragOver,setDragOver]   = useState(null);
-  const [earnMsgs,setEarnMsgs]   = useState([]);
-  const [earnInput,setEarnInput] = useState("");
-  const [earnLoading,setEarnLoading]=useState(false);
-  const [shareModal,setShareModal]=useState(false);
-  const [calMsg,setCalMsg]       = useState(false);
-  const [news,setNews]           = useState([]);
-  const [newsLoading,setNewsLoading]=useState(false);
-  const [newsError,setNewsError] = useState(false);
+  const [showAddOpp,setShowAddOpp]     =useState(false);
+  const [editingOpp,setEditingOpp]     =useState(null);
+  const [newOpp,setNewOpp]             =useState({name:"",stage:"Discovery",value:"",wdAE:"",vndlyAE:""});
+  const [filterStage,setFilterStage]   =useState("all");
+  const [filterVndly,setFilterVndly]   =useState("all");
+  const [todos,setTodos]               =useState(INIT_TODOS);
+  const [cats,setCats]                 =useState(["work","urgent","home","personal","admin"]);
+  const [newCat,setNewCat]             =useState("");
+  const [showNewCat,setShowNewCat]     =useState(false);
+  const [newTodo,setNewTodo]           =useState("");
+  const [newTodoCat,setNewTodoCat]     =useState("work");
+  const [addingToCol,setAddingToCol]   =useState(null);
+  const [dragId,setDragId]             =useState(null);
+  const [dragOver,setDragOver]         =useState(null);
+  const [noteText,setNoteText]         =useState("");
+  const [noteVis,setNoteVis]           =useState("me");
+  const [noteDate,setNoteDate]         =useState(toInputDate(TODAY));
+  const [sessCost,setSessCost]         =useState(0);
+  const [reminder,setReminder]         =useState("Follow up with Acme Corp — due today");
+  const [earnMsgs,setEarnMsgs]         =useState([]);
+  const [earnInput,setEarnInput]       =useState("");
+  const [earnLoading,setEarnLoading]   =useState(false);
+  const [shareModal,setShareModal]     =useState(false);
+  const [calMsg,setCalMsg]             =useState(false);
+  const [news,setNews]                 =useState([]);
+  const [tldr,setTldr]                 =useState("");
+  const [newsLoading,setNewsLoading]   =useState(false);
+  const [newsError,setNewsError]       =useState(false);
+  const [londonWx,setLondonWx]         =useState(null);
+  const [localWx,setLocalWx]           =useState(null);
   const earnRef=useRef(null);
   const isMobile=window.innerWidth<768;
 
-  // Derived AE lists from existing opps
-  const wdAEList  = [...new Set(opps.map(o=>o.wdAE).filter(Boolean))];
+  // Derived AE lists — always up to date from current opps
+  const wdAEList  =[...new Set(opps.map(o=>o.wdAE).filter(Boolean))];
   const vndlyAEList=[...new Set(opps.map(o=>o.vndlyAE).filter(Boolean))];
 
-  useEffect(()=>{ const c=localStorage.getItem("scc_cost3"); if(c)setSessCost(parseFloat(c)||0); loadNews(); },[]);
+  useEffect(()=>{
+    const c=localStorage.getItem("scc_cost3"); if(c)setSessCost(parseFloat(c)||0);
+    loadNews();
+    loadWeather();
+  },[]);
+
   useEffect(()=>{ if(earnRef.current)earnRef.current.scrollTop=earnRef.current.scrollHeight; },[earnMsgs]);
 
+  const loadWeather=async()=>{
+    const london=await fetchWeather(51.5074,-0.1278,"London");
+    setLondonWx(london);
+    if(navigator.geolocation){
+      navigator.geolocation.getCurrentPosition(async pos=>{
+        const {latitude:lat,longitude:lon}=pos.coords;
+        // Reverse geocode label
+        try{
+          const r=await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
+          const d=await r.json();
+          const label=d.address?.city||d.address?.town||d.address?.village||"Current location";
+          // Only show if meaningfully different from London
+          const distKm=Math.sqrt(Math.pow((lat-51.5074)*111,2)+Math.pow((lon+0.1278)*69,2));
+          if(distKm>30){
+            const wx=await fetchWeather(lat,lon,label);
+            setLocalWx(wx);
+          }
+        }catch{}
+      },()=>{});
+    }
+  };
+
   const loadNews=async()=>{
-    setNewsLoading(true);setNewsError(false);setNews([]);
+    setNewsLoading(true);setNewsError(false);setNews([]);setTldr("");
     const articles=await fetchBBC();
     if(!articles){setNewsError(true);setNewsLoading(false);return;}
-    const summaries=await summariseNews(articles);
-    if(summaries&&summaries.length){
+    // Summaries and TLDR in parallel
+    const [summaries,tldrText]=await Promise.all([summariseNews(articles),generateTLDR(articles)]);
+    if(tldrText)setTldr(tldrText);
+    if(summaries?.length){
       setNews(summaries.map((s,i)=>({...s,link:articles[i]?.link||"#",src:"BBC"})));
-    } else {
+    }else{
       setNews(articles.map(a=>({title:a.title,summary:a.desc.slice(0,100),link:a.link,src:"BBC"})));
     }
     setNewsLoading(false);
@@ -212,23 +283,42 @@ export default function App() {
     setSessCost(p=>{const n=p+cost;localStorage.setItem("scc_cost3",n.toFixed(6));return n;});
   };
 
-  const sendEARN=async(msg)=>{
+  const sendEARN=async msg=>{
     const msgs=[...earnMsgs,{role:"user",content:msg}];
     setEarnMsgs(msgs);setEarnInput("");setEarnLoading(true);
     try{
-      const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,system:EARN_SYSTEM,messages:msgs})});
-      const data=await res.json();
-      const text=data.content?.map(c=>c.text||"").join("")||"Error.";
-      setEarnMsgs(p=>[...p,{role:"assistant",content:text}]);
-      if(data.usage)addTok(data.usage.input_tokens,data.usage.output_tokens);
-    }catch{setEarnMsgs(p=>[...p,{role:"assistant",content:"API error — check connection."}]);}
+      const {text,usage}=await claudeCall(msgs,EARN_SYSTEM);
+      setEarnMsgs(p=>[...p,{role:"assistant",content:text||"Error."}]);
+      if(usage)addTok(usage.input_tokens,usage.output_tokens);
+    }catch(e){setEarnMsgs(p=>[...p,{role:"assistant",content:"Error: "+e.message}]);}
     setEarnLoading(false);
   };
 
   const startEARN=opp=>{setEarnMsgs([]);setTab("earn");setTimeout(()=>sendEARN(`Initiate EARN note. Opportunity: ${opp.name}, Stage: ${opp.stage}, Value: ${opp.value}`),50);};
+
   const moveTodo=(id,toCol)=>setTodos(p=>p.map(t=>t.id===id?{...t,col:toCol,done:toCol==="done"}:t));
-  const addNote=oppId=>{if(!noteText.trim())return;setOpps(p=>p.map(o=>o.id===oppId?{...o,notes:[...o.notes,{id:Date.now(),text:noteText,vis:noteVis,date:new Date().toLocaleDateString("en-GB")}]}:o));setNoteText("");};
+
+  const addNote=oppId=>{
+    if(!noteText.trim())return;
+    const d=fromInputDate(noteDate);
+    setOpps(p=>p.map(o=>{
+      if(o.id!==oppId)return o;
+      const updated=[...o.notes,{id:Date.now(),text:noteText,vis:noteVis,date:d,dateStr:fmtFull(d)}];
+      updated.sort((a,b)=>new Date(b.date)-new Date(a.date));
+      return{...o,notes:updated};
+    }));
+    setNoteText("");setNoteDate(toInputDate(TODAY));
+  };
+
+  const updateNoteDate=(oppId,nid,newDateStr)=>{
+    setOpps(p=>p.map(o=>{
+      if(o.id!==oppId)return o;
+      const updated=o.notes.map(n=>n.id===nid?{...n,date:fromInputDate(newDateStr),dateStr:fmtFull(fromInputDate(newDateStr))}:n);
+      updated.sort((a,b)=>new Date(b.date)-new Date(a.date));
+      return{...o,notes:updated};
+    }));
+  };
+
   const togNoteVis=(oppId,nid,vis)=>setOpps(p=>p.map(o=>o.id===oppId?{...o,notes:o.notes.map(n=>n.id===nid?{...n,vis}:n)}:o));
 
   const addOpp=()=>{
@@ -241,7 +331,6 @@ export default function App() {
   const saveOppEdit=(id,fields)=>setOpps(p=>p.map(o=>o.id===id?{...o,...fields,last:"Just now"}:o));
 
   const filteredOpps=opps.filter(o=>(filterStage==="all"||o.stage===filterStage)&&(filterVndly==="all"||o.vndlyAE===filterVndly));
-
   const curOpp=opps.find(o=>o.id===selOpp);
   const openCount=todos.filter(t=>!t.done).length;
   const visC=v=>v==="me"?{bg:"rgba(124,111,255,0.2)",c:"#a78bfa"}:v==="ae"?{bg:"rgba(251,146,60,0.2)",c:"#fb923c"}:{bg:"rgba(74,222,128,0.2)",c:"#4ade80"};
@@ -249,13 +338,24 @@ export default function App() {
   const badge=(bg,c)=>({background:bg,color:c,fontSize:11,padding:"2px 8px",borderRadius:4,fontWeight:500,display:"inline-block"});
   const calDays=BOARD_COLS.slice(1,6).map(col=>({label:col.label,date:col.date,events:CAL.filter(e=>e.date.toDateString()===col.date?.toDateString())}));
 
-  // ── AE combo input (dropdown + free text) ────────────────────────
-  const AEField=({value,onChange,list,placeholder})=>(
-    <div style={{position:"relative"}}>
-      <input value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} list={`ae-list-${placeholder}`}/>
-      <datalist id={`ae-list-${placeholder}`}>{list.map(n=><option key={n} value={n}/>)}</datalist>
+  // ── Weather card ──────────────────────────────────────────────────
+  const WxCard=({wx})=>wx?(
+    <div style={{background:BG3,border:`1px solid ${BOR}`,borderRadius:10,padding:"10px 12px",flex:1,minWidth:0}}>
+      <div style={{fontSize:11,color:TXS,marginBottom:4}}>{wx.label}</div>
+      <div style={{display:"flex",alignItems:"center",gap:8}}>
+        <span style={{fontSize:28}}>{wx.icon}</span>
+        <div>
+          <div style={{fontSize:18,fontWeight:500,color:TX}}>{wx.temp}°C</div>
+          <div style={{fontSize:11,color:TXS}}>{wx.desc}</div>
+        </div>
+      </div>
+      <div style={{display:"flex",gap:10,marginTop:6,fontSize:11,color:TXS,flexWrap:"wrap"}}>
+        <span>↑{wx.hi}° ↓{wx.lo}°</span>
+        <span>💨 {wx.wind} km/h</span>
+        <span>🌧️ {wx.rain}%</span>
+      </div>
     </div>
-  );
+  ):null;
 
   // ── Opp edit form ─────────────────────────────────────────────────
   const OppEditForm=({opp,onSave,onCancel})=>{
@@ -271,31 +371,34 @@ export default function App() {
           </select>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
-          <AEField value={f.wdAE} onChange={v=>setF(p=>({...p,wdAE:v}))} list={wdAEList} placeholder="Workday AE"/>
-          <AEField value={f.vndlyAE} onChange={v=>setF(p=>({...p,vndlyAE:v}))} list={vndlyAEList} placeholder="VNDLY AE"/>
+          <AEField value={f.wdAE} onChange={v=>setF(p=>({...p,wdAE:v}))} list={wdAEList} placeholder="Workday AE" id="edit-wd-ae"/>
+          <AEField value={f.vndlyAE} onChange={v=>setF(p=>({...p,vndlyAE:v}))} list={vndlyAEList} placeholder="VNDLY AE" id="edit-vndly-ae"/>
         </div>
         <div style={{display:"flex",gap:8}}>
-          <button onClick={()=>{onSave(f);}} style={{flex:1,padding:"7px",borderRadius:8,background:ACC,color:"#fff",border:"none",cursor:"pointer",fontSize:13,fontWeight:500}}>Save</button>
+          <button onClick={()=>onSave(f)} style={{flex:1,padding:"7px",borderRadius:8,background:ACC,color:"#fff",border:"none",cursor:"pointer",fontSize:13,fontWeight:500}}>Save</button>
           <button onClick={onCancel} style={{padding:"7px 12px",borderRadius:8,border:`1px solid ${BOR2}`,background:"transparent",color:TXS,cursor:"pointer",fontSize:13}}>Cancel</button>
         </div>
       </div>
     );
   };
 
-  // ── Todo edit inline ──────────────────────────────────────────────
-  const TodoCard=({t,colAccent})=>{
+  // ── Todo card with edit ───────────────────────────────────────────
+  const TodoCard=({t})=>{
     const [editing,setEditing]=useState(false);
     const [text,setText]=useState(t.text);
-    const [cat,setCat]=useState(t.cat);
+    const [cat,setCatLocal]=useState(t.cat);
+    const taRef=useRef(null);
+    useEffect(()=>{ if(editing&&taRef.current){taRef.current.style.height="auto";taRef.current.style.height=taRef.current.scrollHeight+"px";} },[editing,text]);
     if(editing) return(
       <div style={{background:BG2,border:`1px solid ${ACC}`,borderRadius:7,padding:"8px",marginBottom:5}}>
-        <input value={text} onChange={e=>setText(e.target.value)} style={{marginBottom:"6px !important",fontSize:"12px !important",padding:"4px 7px !important"}}/>
-        <select value={cat} onChange={e=>setCat(e.target.value)} style={{marginBottom:"6px !important",fontSize:"11px !important",padding:"3px 6px !important"}}>
+        <textarea ref={taRef} value={text} onChange={e=>{setText(e.target.value);e.target.style.height="auto";e.target.style.height=e.target.scrollHeight+"px";}}
+          style={{marginBottom:"6px !important",fontSize:"12px !important",padding:"4px 7px !important",resize:"none",overflow:"hidden",minHeight:32}}/>
+        <select value={cat} onChange={e=>setCatLocal(e.target.value)} style={{marginBottom:"6px !important",fontSize:"11px !important",padding:"3px 6px !important"}}>
           {cats.map(c=><option key={c} value={c}>{c}</option>)}
         </select>
         <div style={{display:"flex",gap:4}}>
           <button onClick={()=>{setTodos(p=>p.map(x=>x.id===t.id?{...x,text,cat}:x));setEditing(false);}} style={{flex:1,fontSize:11,padding:"4px",borderRadius:5,background:ACC,color:"#fff",border:"none",cursor:"pointer"}}>Save</button>
-          <button onClick={()=>{setTodos(p=>p.filter(x=>x.id!==t.id));}} style={{fontSize:11,padding:"4px 6px",borderRadius:5,background:"rgba(239,68,68,0.15)",border:"1px solid #ef4444",color:"#f87171",cursor:"pointer"}}>Del</button>
+          <button onClick={()=>setTodos(p=>p.filter(x=>x.id!==t.id))} style={{fontSize:11,padding:"4px 6px",borderRadius:5,background:"rgba(239,68,68,0.15)",border:"1px solid #ef4444",color:"#f87171",cursor:"pointer"}}>Del</button>
           <button onClick={()=>setEditing(false)} style={{fontSize:11,padding:"4px 6px",borderRadius:5,background:"transparent",border:`1px solid ${BOR2}`,color:TXS,cursor:"pointer"}}>✕</button>
         </div>
       </div>
@@ -312,6 +415,42 @@ export default function App() {
     );
   };
 
+  // ── Note panel ────────────────────────────────────────────────────
+  const NotePanel=({opp,mobile})=>(
+    <div>
+      <div style={{fontSize:13,fontWeight:500,color:TXM,marginBottom:10}}>Notes</div>
+      {opp.notes.length===0&&<div style={{fontSize:13,color:TXS,marginBottom:10}}>No notes yet.</div>}
+      {opp.notes.map(n=>(
+        <div key={n.id} style={{background:BG3,borderRadius:10,padding:"12px 14px",marginBottom:10,border:`1px solid ${BOR}`}}>
+          <div style={{fontSize:15,color:TX,lineHeight:1.6,marginBottom:10}}>{n.text}</div>
+          <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+            <input type="date" defaultValue={toInputDate(new Date(n.date))}
+              onChange={e=>updateNoteDate(opp.id,n.id,e.target.value)}
+              style={{fontSize:"11px !important",padding:"2px 6px !important",width:"auto !important",background:`${BG2} !important`,color:`${TXS} !important`,border:`1px solid ${BOR2} !important`,borderRadius:"4px !important`,cursor:"pointer"}}/>
+            <span style={{fontSize:11,color:TXS}}>{n.dateStr||fmtFull(new Date(n.date))}</span>
+            <select value={n.vis} onChange={e=>togNoteVis(opp.id,n.id,e.target.value)}
+              style={{fontSize:"11px !important",padding:"2px 6px !important",width:"auto !important",background:`${visC(n.vis).bg} !important`,color:`${visC(n.vis).c} !important`,border:"none !important",borderRadius:"4px !important",cursor:"pointer",marginLeft:"auto"}}>
+              <option value="me">Only me</option><option value="ae">Me + AE</option><option value="manager">All</option>
+            </select>
+          </div>
+        </div>
+      ))}
+      <div style={{background:BG3,borderRadius:10,padding:"12px 14px",border:`1px solid ${BOR2}`,marginTop:4}}>
+        <textarea value={noteText} onChange={e=>setNoteText(e.target.value)} placeholder="Add a note…"
+          style={{height:72,resize:"none",marginBottom:"8px !important",fontSize:"14px !important"}}/>
+        <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+          <input type="date" value={noteDate} onChange={e=>setNoteDate(e.target.value)}
+            style={{fontSize:"11px !important",padding:"3px 6px !important",width:"auto !important",flex:"0 0 auto"}}/>
+          <select value={noteVis} onChange={e=>setNoteVis(e.target.value)}
+            style={{fontSize:"11px !important",padding:"3px 6px !important",width:"auto !important",flex:"0 0 auto",background:`${visC(noteVis).bg} !important`,color:`${visC(noteVis).c} !important`}}>
+            <option value="me">Only me</option><option value="ae">Me + AE</option><option value="manager">All</option>
+          </select>
+          <button onClick={()=>addNote(opp.id)} style={{marginLeft:"auto",padding:"6px 16px",borderRadius:8,background:ACC,color:"#fff",border:"none",cursor:"pointer",fontSize:13,fontWeight:500}}>Save</button>
+        </div>
+      </div>
+    </div>
+  );
+
   return(
     <div style={{background:BG,minHeight:"100vh",fontFamily:"system-ui,sans-serif",color:TX,paddingBottom:isMobile?64:0}}>
       <style>{`
@@ -322,7 +461,7 @@ export default function App() {
         input:focus,textarea:focus,select:focus{border-color:${ACC}!important;}
         select option{background:${BG2};}
         button{font-family:system-ui,sans-serif;}
-        datalist{background:${BG2};color:${TX};}
+        input[type="date"]{color-scheme:dark;}
       `}</style>
 
       {reminder&&(
@@ -332,7 +471,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Top bar */}
       <div style={{background:BG2,borderBottom:`1px solid ${BOR}`,padding:"0 16px",display:"flex",alignItems:"center",justifyContent:"space-between",height:52,position:"sticky",top:0,zIndex:40}}>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           <div style={{background:ACL,border:`1px solid ${ACC}`,borderRadius:8,width:28,height:28,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>🚀</div>
@@ -374,6 +512,14 @@ export default function App() {
                 <div style={{fontSize:20,fontWeight:500,color:TX}}>Good morning</div>
                 <div style={{fontSize:13,color:TXS,marginTop:2}}>{openCount} open tasks · {todayStr}</div>
               </div>
+
+              {/* Weather */}
+              <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}>
+                <WxCard wx={londonWx}/>
+                {localWx&&<WxCard wx={localWx}/>}
+                {!londonWx&&<div style={{fontSize:13,color:TXS,padding:"8px 0"}}>Loading weather…</div>}
+              </div>
+
               <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:12}}>
                 <div style={card}>
                   <div style={{fontSize:12,fontWeight:500,color:TXS,marginBottom:10,textTransform:"uppercase",letterSpacing:"0.06em"}}>Opportunities</div>
@@ -412,16 +558,15 @@ export default function App() {
                   ))}
                 </div>
                 <div style={card}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                     <span style={{fontSize:12,fontWeight:500,color:TXS,textTransform:"uppercase",letterSpacing:"0.06em"}}>BBC News</span>
                     <button onClick={loadNews} style={{fontSize:11,color:TXS,background:BG3,padding:"2px 7px",borderRadius:5,border:`1px solid ${BOR}`,cursor:"pointer"}}>↺</button>
                   </div>
+                  {tldr&&<div style={{fontSize:12,color:TXM,lineHeight:1.5,marginBottom:8,padding:"8px",background:BG3,borderRadius:6,border:`1px solid ${BOR}`}}><span style={{color:ACC,fontWeight:500,fontSize:10,display:"block",marginBottom:3}}>TL;DR</span>{tldr}</div>}
                   {newsLoading&&<div style={{fontSize:13,color:TXS}}>Loading…</div>}
-                  {newsError&&<div style={{fontSize:13,color:"#f87171"}}>Could not load — check connection.</div>}
                   {!newsLoading&&!newsError&&news.slice(0,3).map((n,i)=>(
-                    <a key={i} href={n.link} target="_blank" rel="noreferrer" style={{display:"block",padding:"7px 0",borderBottom:`1px solid ${BOR}`,textDecoration:"none"}}>
-                      <div style={{fontSize:12,fontWeight:500,color:TXM,marginBottom:2}}>{n.title}</div>
-                      <div style={{fontSize:11,color:TXS}}>{n.summary}</div>
+                    <a key={i} href={n.link} target="_blank" rel="noreferrer" style={{display:"block",padding:"6px 0",borderBottom:`1px solid ${BOR}`,textDecoration:"none"}}>
+                      <div style={{fontSize:12,fontWeight:500,color:TXM}}>{n.title}</div>
                     </a>
                   ))}
                 </div>
@@ -435,13 +580,12 @@ export default function App() {
               {(!oppDetailOpen||!isMobile)&&(
                 <div style={isMobile?{}:{display:"grid",gridTemplateColumns:"300px 1fr",gap:16}}>
                   <div>
-                    {/* Filters + Add */}
                     <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap",alignItems:"center"}}>
                       <select value={filterStage} onChange={e=>setFilterStage(e.target.value)} style={{fontSize:"12px !important",padding:"4px 8px !important",flex:1,minWidth:100}}>
                         <option value="all">All stages</option>
                         {Object.keys(STAGE_C).map(s=><option key={s} value={s}>{s}</option>)}
                       </select>
-                      <select value={filterVndly} onChange={e=>setFilterVndly(e.target.value)} style={{fontSize:"12px !important",padding:"4px 8px !important",flex:1,minWidth:100}}>
+                      <select value={filterVndly} onChange={e=>setFilterVndly(e.target.value)} style={{fontSize:"12px !important",padding:"4px 8px !important",flex:1,minWidth:110}}>
                         <option value="all">All VNDLY AEs</option>
                         {vndlyAEList.map(n=><option key={n} value={n}>{n}</option>)}
                       </select>
@@ -459,8 +603,8 @@ export default function App() {
                           </select>
                         </div>
                         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
-                          <AEField value={newOpp.wdAE} onChange={v=>setNewOpp(p=>({...p,wdAE:v}))} list={wdAEList} placeholder="Workday AE"/>
-                          <AEField value={newOpp.vndlyAE} onChange={v=>setNewOpp(p=>({...p,vndlyAE:v}))} list={vndlyAEList} placeholder="VNDLY AE"/>
+                          <AEField value={newOpp.wdAE} onChange={v=>setNewOpp(p=>({...p,wdAE:v}))} list={wdAEList} placeholder="Workday AE" id="new-wd-ae"/>
+                          <AEField value={newOpp.vndlyAE} onChange={v=>setNewOpp(p=>({...p,vndlyAE:v}))} list={vndlyAEList} placeholder="VNDLY AE" id="new-vndly-ae"/>
                         </div>
                         <div style={{display:"flex",gap:8}}>
                           <button onClick={addOpp} style={{flex:1,padding:"7px",borderRadius:8,background:ACC,color:"#fff",border:"none",cursor:"pointer",fontSize:13,fontWeight:500}}>Save</button>
@@ -494,7 +638,7 @@ export default function App() {
                         )}
                       </div>
                     ))}
-                    {filteredOpps.length===0&&<div style={{fontSize:13,color:TXS,padding:"12px 0"}}>No opportunities match the current filter.</div>}
+                    {filteredOpps.length===0&&<div style={{fontSize:13,color:TXS,padding:"12px 0"}}>No opportunities match filters.</div>}
                   </div>
 
                   {selOpp&&curOpp&&!isMobile&&(
@@ -502,33 +646,17 @@ export default function App() {
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
                         <div>
                           <div style={{fontSize:16,fontWeight:500,color:TX}}>{curOpp.name}</div>
-                          <div style={{fontSize:12,color:TXS,marginTop:2}}>{curOpp.value} · WD: {curOpp.wdAE} {curOpp.vndlyAE&&`· VNDLY: ${curOpp.vndlyAE}`}</div>
+                          <div style={{fontSize:12,color:TXS,marginTop:2}}>
+                            <span style={{...badge(STAGE_C[curOpp.stage]?.bg,STAGE_C[curOpp.stage]?.c),marginRight:6}}>{curOpp.stage}</span>
+                            {curOpp.value}{curOpp.wdAE&&` · WD: ${curOpp.wdAE}`}{curOpp.vndlyAE&&` · VNDLY: ${curOpp.vndlyAE}`}
+                          </div>
                         </div>
-                        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                        <div style={{display:"flex",gap:8}}>
                           <button onClick={()=>startEARN(curOpp)} style={{fontSize:12,padding:"5px 10px",borderRadius:6,border:`1px solid ${ACC}`,cursor:"pointer",background:ACL,color:"#a78bfa",fontWeight:500}}>✨ EARN</button>
                           <button onClick={()=>setShareModal(true)} style={{fontSize:12,padding:"5px 10px",borderRadius:6,border:`1px solid ${BOR2}`,cursor:"pointer",background:BG3,color:TXS}}>Share</button>
                         </div>
                       </div>
-                      <div style={{fontSize:13,fontWeight:500,color:TXM,marginBottom:8}}>Notes</div>
-                      {curOpp.notes.length===0&&<div style={{fontSize:13,color:TXS,marginBottom:10}}>No notes yet.</div>}
-                      {curOpp.notes.map(n=>(
-                        <div key={n.id} style={{background:BG3,borderRadius:8,padding:"10px 12px",marginBottom:8}}>
-                          <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-                            <span style={{fontSize:11,color:TXS}}>{n.date}</span>
-                            <select value={n.vis} onChange={e=>togNoteVis(curOpp.id,n.id,e.target.value)} style={{fontSize:"11px !important",padding:"2px 6px !important",width:"auto !important",background:`${visC(n.vis).bg} !important`,color:`${visC(n.vis).c} !important`,border:"none !important",borderRadius:"4px !important",cursor:"pointer"}}>
-                              <option value="me">Only me</option><option value="ae">Me + AE</option><option value="manager">All</option>
-                            </select>
-                          </div>
-                          <div style={{fontSize:13,color:TXM,lineHeight:1.5}}>{n.text}</div>
-                        </div>
-                      ))}
-                      <textarea value={noteText} onChange={e=>setNoteText(e.target.value)} placeholder="Add a note…" style={{height:72,resize:"none",marginBottom:8}}/>
-                      <div style={{display:"flex",gap:8}}>
-                        <select value={noteVis} onChange={e=>setNoteVis(e.target.value)} style={{flex:1,background:`${visC(noteVis).bg} !important`,color:`${visC(noteVis).c} !important`}}>
-                          <option value="me">Only me</option><option value="ae">Me + AE</option><option value="manager">All</option>
-                        </select>
-                        <button onClick={()=>addNote(curOpp.id)} style={{padding:"8px 18px",borderRadius:8,background:ACC,color:"#fff",border:"none",cursor:"pointer",fontSize:13,fontWeight:500,flexShrink:0}}>Save</button>
-                      </div>
+                      <NotePanel opp={curOpp}/>
                     </div>
                   )}
                 </div>
@@ -548,16 +676,7 @@ export default function App() {
                     <button onClick={()=>startEARN(curOpp)} style={{fontSize:12,padding:"3px 10px",borderRadius:6,border:`1px solid ${ACC}`,cursor:"pointer",background:ACL,color:"#a78bfa",fontWeight:500}}>✨ EARN</button>
                     <button onClick={()=>setShareModal(true)} style={{fontSize:12,padding:"3px 10px",borderRadius:6,border:`1px solid ${BOR2}`,cursor:"pointer",background:BG3,color:TXS}}>Share</button>
                   </div>
-                  <div style={{fontSize:13,fontWeight:500,color:TXM,marginBottom:8}}>Notes</div>
-                  {curOpp.notes.length===0&&<div style={{fontSize:13,color:TXS,marginBottom:10}}>No notes yet.</div>}
-                  {curOpp.notes.map(n=>(
-                    <div key={n.id} style={{background:BG3,borderRadius:8,padding:"10px 12px",marginBottom:8}}>
-                      <div style={{fontSize:11,color:TXS,marginBottom:4}}>{n.date}</div>
-                      <div style={{fontSize:13,color:TXM,lineHeight:1.5}}>{n.text}</div>
-                    </div>
-                  ))}
-                  <textarea value={noteText} onChange={e=>setNoteText(e.target.value)} placeholder="Add a note…" style={{height:72,resize:"none",marginBottom:8}}/>
-                  <button onClick={()=>addNote(curOpp.id)} style={{width:"100%",padding:"10px",borderRadius:8,background:ACC,color:"#fff",border:"none",cursor:"pointer",fontSize:13,fontWeight:500}}>Save note</button>
+                  <NotePanel opp={curOpp} mobile/>
                 </div>
               )}
             </div>
@@ -593,7 +712,7 @@ export default function App() {
                           <span style={{marginLeft:"auto",fontSize:10,color:TXS,background:"rgba(255,255,255,0.05)",borderRadius:8,padding:"1px 5px"}}>{colItems.length}</span>
                         </div>
                         {col.date&&<div style={{fontSize:10,color:TXS,marginBottom:8}}>{fmtShort(col.date)}</div>}
-                        {colItems.map(t=><TodoCard key={t.id} t={t} colAccent={col.accent}/>)}
+                        {colItems.map(t=><TodoCard key={t.id} t={t}/>)}
                         {addingToCol===col.id?(
                           <div>
                             <input value={newTodo} onChange={e=>setNewTodo(e.target.value)}
@@ -625,9 +744,7 @@ export default function App() {
             <div>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
                 <div style={{fontSize:15,fontWeight:500,color:TX}}>Week of {fmtShort(MONDAY)}</div>
-                <button onClick={()=>setCalMsg(p=>!p)} style={{fontSize:11,color:TXS,background:BG3,padding:"4px 8px",borderRadius:6,border:`1px solid ${BOR}`,cursor:"pointer"}}>
-                  🔗 Connect Outlook / Google
-                </button>
+                <button onClick={()=>setCalMsg(p=>!p)} style={{fontSize:11,color:TXS,background:BG3,padding:"4px 8px",borderRadius:6,border:`1px solid ${BOR}`,cursor:"pointer"}}>🔗 Connect calendar</button>
               </div>
               {calMsg&&(
                 <div style={{...card,marginBottom:12,background:"rgba(124,111,255,0.08)",border:`1px solid ${ACC}`}}>
@@ -667,6 +784,12 @@ export default function App() {
                 <div style={{fontSize:15,fontWeight:500,color:TX}}>News digest</div>
                 <button onClick={loadNews} style={{fontSize:11,color:TXS,background:BG3,padding:"4px 8px",borderRadius:6,border:`1px solid ${BOR}`,cursor:"pointer"}}>↺ Refresh</button>
               </div>
+              {tldr&&(
+                <div style={{...card,marginBottom:14,background:"rgba(124,111,255,0.08)",border:`1px solid ${ACC}`}}>
+                  <div style={{fontSize:11,fontWeight:500,color:ACC,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.06em"}}>TL;DR — Today's business news</div>
+                  <div style={{fontSize:14,color:TXM,lineHeight:1.6}}>{tldr}</div>
+                </div>
+              )}
               <div style={{...card,marginBottom:12,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                 <div>
                   <div style={{fontSize:13,fontWeight:500,color:TXM,marginBottom:2}}>Company intranet</div>
