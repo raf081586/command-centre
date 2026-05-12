@@ -21,13 +21,11 @@ export default async function handler(req, res) {
       }),
     });
 
-    // Read as text first so we can diagnose non-JSON responses
     const raw = await response.text();
     let data;
     try {
       data = JSON.parse(raw);
     } catch {
-      // Return a readable error instead of crashing
       return res.status(500).json({
         content: [{ type: "text", text: `API error (${response.status}): ${raw.slice(0, 200)}` }],
         usage: { input_tokens: 0, output_tokens: 0 },
