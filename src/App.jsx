@@ -513,7 +513,7 @@ export default function App(){
   );
 
   return(
-    <div style={{background:BG,minHeight:"100vh",    fontFamily:"system-ui,sans-serif",color:TX,paddingBottom:isMobile?80:0}}>
+    <div style={{background:BG,minHeight:"100vh",    fontFamily:"system-ui,sans-serif",color:TX,paddingBottom:isMobile?88:0}}>
       <style>{`
         *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
         ::-webkit-scrollbar{width:3px;height:3px;}
@@ -919,7 +919,7 @@ export default function App(){
       </div>
 
       {isMobile&&(
-        <nav style={{position:"fixed",bottom:0,left:0,right:0,background:BG2,borderTop:`1px solid ${BOR}`,display:"flex",zIndex:50,height:64,paddingBottom:"env(safe-area-inset-bottom, 8px)"}}>
+        <nav style={{position:"fixed",bottom:0,left:0,right:0,background:BG2,borderTop:`1px solid ${BOR}`,display:"flex",zIndex:50,height:72,paddingBottom:"max(env(safe-area-inset-bottom, 0px), 16px)"}}>
           {TAB_ITEMS.map(({k,lb,em})=>(
             <button key={k} onClick={()=>{setTab(k);setOppDetailOpen(false);}} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:2,border:"none",background:"none",cursor:"pointer",color:tab===k?ACC:TXS,padding:"6px 0"}}>
               <span style={{fontSize:18}}>{em}</span>
